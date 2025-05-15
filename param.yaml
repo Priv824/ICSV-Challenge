@@ -11,8 +11,8 @@ epochs: 100
 batch_size: 64
 lr: 1e-3
 
-gpu: 7
-n_workers: 4
+gpu: 0
+n_workers: 1
 
 sr: 16000
 n_fft: 1024
