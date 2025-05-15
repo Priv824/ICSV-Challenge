@@ -5,7 +5,7 @@ import librosa
 from PyEMD import EMD
 
 # ─────── CONFIG ───────
-BASE_PATH = os.path.expanduser("~/ICSV-Surya/ICSV-Challenge")
+BASE_PATH = r"C:\Users\chitt\Downloads\ICSV\Git\ICSV-Challenge\data"
 DRONE_TYPES = ["A", "B", "C"]
 MOVEMENTS = ["Front", "Back", "Left", "Right", "Clockwise", "CounterClockwise"]
 SAMPLE_RATE = 16000
@@ -33,7 +33,7 @@ def to_pcm16(signal):
     signal = signal / np.max(np.abs(signal))  # Normalize to [-1, 1]
     return np.clip(signal, -1.0, 1.0)
 
-# ─────── PROCESSING LOOP ───────
+# ─────── MAIN PROCESSING LOOP ───────
 
 for drone in DRONE_TYPES:
     for mv in MOVEMENTS:
@@ -44,24 +44,28 @@ for drone in DRONE_TYPES:
 
         print(f"🔧 Processing: {os.path.basename(wav_path)}")
 
-        # Load and preprocess
-        y = load_mono(wav_path)
-        y = librosa.effects.preemphasis(y, coef=0.97)
+        try:
+            # Load and preprocess
+            y = load_mono(wav_path)
+            y = librosa.effects.preemphasis(y, coef=0.97)
 
-        # Apply EMD
-        emd = EMD()
-        imfs = emd(y)
+            # Apply EMD
+            emd = EMD()
+            imfs = emd(y)
 
-        if imfs.shape[0] < 9:
-            print(f"⚠️  Not enough IMFs to reconstruct low-frequency part: {wav_path}")
-            continue
+            if imfs.shape[0] < 9:
+                print(f"⚠️  Not enough IMFs to reconstruct low-frequency part: {wav_path}")
+                continue
 
-        # Reconstruct low-frequency part (IMFs 8+)
-        y_low = np.sum(imfs[8:, :], axis=0)
-        y_out = to_pcm16(y_low)
+            # Reconstruct low-frequency part (IMFs 8+)
+            y_low = np.sum(imfs[8:, :], axis=0)
+            y_out = to_pcm16(y_low)
 
-        # Overwrite original file with reconstructed version
-        sf.write(wav_path, y_out, SAMPLE_RATE, subtype='PCM_16')
-        print(f"✅ Overwritten: {wav_path}")
+            # Overwrite original file
+            sf.write(wav_path, y_out, SAMPLE_RATE, subtype='PCM_16')
+            print(f"✅ Overwritten: {wav_path}")
+
+        except Exception as e:
+            print(f"❌ Error processing {wav_path}: {e}")
 
 print("\n🎉 Done! All train audio files processed and replaced with low-frequency reconstructions.")
