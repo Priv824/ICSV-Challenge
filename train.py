@@ -4,6 +4,7 @@ import os
 import torch
 import yaml
 from tqdm import tqdm
+import torch.nn as nn
 
 import dataset
 import net
