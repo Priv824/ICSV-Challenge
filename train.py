@@ -60,7 +60,7 @@ def visualize_activations(model, input_tensor, save_path):
         hook.remove()
     
     # Visualize
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    os.makedirs(save_path, exist_ok=True)
     for name, act in activations.items():
         if len(act.shape) == 3:  # Only visualize conv activations
             plt.figure(figsize=(12, 6))
@@ -127,7 +127,9 @@ def train(args: argparse.Namespace) -> None:
         print(f"Epoch {epoch+1}/{args.epochs}")
         model.train()
 
-        p_bar = tqdm(dataloader, total=len(dataloader), desc="Training", ncols=100)
+        p_bar = tqdm(dataloader, total=len(dataloader), ncols=100, leave=False)
+        
+
         for batch_idx, data in enumerate(p_bar):
             log_mel = data[0].cuda()
             recon_log_mel = model(log_mel)
@@ -140,7 +142,7 @@ def train(args: argparse.Namespace) -> None:
             loss.backward()
             optimizer.step()
 
-            p_bar.set_description(f"Epoch {epoch + 1}, Loss: {loss.item():.4f}")
+            p_bar.set_postfix(loss=f"{loss.item():.4f}")
             
             # Save comparison every N batches
             if batch_idx % 100 == 0:
