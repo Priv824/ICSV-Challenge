@@ -109,7 +109,7 @@ def set_seed(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
 
 
-def train(args: argparse.Namespace) -> None:
+def train(args: argparse.Namespace, verbose: bool = False) -> None:
     print("Training started...")
     os.makedirs(args.result_dir, exist_ok=True)
     os.makedirs(args.model_dir, exist_ok=True)
@@ -124,12 +124,11 @@ def train(args: argparse.Namespace) -> None:
     criterion = torch.nn.MSELoss()
 
     for epoch in range(args.epochs):
-        print(f"Epoch {epoch+1}/{args.epochs}")
+        print(f"\nEpoch {epoch+1}/{args.epochs}")
         model.train()
 
         p_bar = tqdm(dataloader, total=len(dataloader), ncols=100, leave=False)
         
-
         for batch_idx, data in enumerate(p_bar):
             log_mel = data[0].cuda()
             recon_log_mel = model(log_mel)
@@ -142,7 +141,7 @@ def train(args: argparse.Namespace) -> None:
             loss.backward()
             optimizer.step()
 
-            p_bar.set_postfix(loss=f"{loss.item():.4f}")
+            p_bar.set_description(f"Epoch {epoch+1}, Loss: {loss.item():.4f}")
             
             # Save comparison every N batches
             if batch_idx % 100 == 0:
@@ -154,12 +153,14 @@ def train(args: argparse.Namespace) -> None:
                     analysis_dir
                 )
                 
-                # Calculate and print frequency band errors
-                with torch.no_grad():
-                    error_per_band = torch.mean(torch.abs(recon_log_mel - target), dim=(0, 2, 3))
-                    print("\nFrequency band errors:")
-                    for i, err in enumerate(error_per_band):
-                        print(f"Band {i}: {err.item():.4f}")
+                # Print frequency band errors only if verbose is True
+                if verbose:
+                    with torch.no_grad():
+                        error_per_band = torch.mean(torch.abs(recon_log_mel - target), dim=(0, 2, 3))
+                        print("\nFrequency band errors:")
+                        for i, err in enumerate(error_per_band):
+                            print(f"Band {i}: {err.item():.4f}")
+
         # At the end of each epoch, visualize activations
         if epoch % 5 == 0 or epoch == args.epochs - 1:
             # Get a sample batch
@@ -172,11 +173,14 @@ def train(args: argparse.Namespace) -> None:
                 sample_input,
                 os.path.join(analysis_dir, f"epoch_{epoch}_activations")
             )
+    
     utils.save_model(model, os.path.join(args.model_dir, args.model_path))
 
 if __name__ == "__main__":
     args = get_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
     set_seed(2025)
+
+    train(args, verbose=False)
 
     train(args)
