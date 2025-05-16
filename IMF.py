@@ -5,7 +5,7 @@ import librosa
 from PyEMD import EMD
 
 # ─────── CONFIG ───────
-BASE_PATH = os.path.expanduser("~/ICSV-Surya/ICSV-Challenge/data")
+BASE_PATH = r"C:\Users\chitt\Downloads\ICSV\Git\ICSV-Challenge\data"
 TRAIN_FOLDER = "eval"  # Change this if your train data is in a different folder
 SAMPLE_RATE = 16000
 
