@@ -2,7 +2,7 @@ import os
 import soundfile as sf
 import numpy as np
 import librosa
-from Pyemd import EMD
+from pyemd import EMD
 
 # ─────── CONFIG ───────
 BASE_PATH = os.path.expanduser("~/ICSV-Surya/ICSV-Challenge/data")
