@@ -6,20 +6,10 @@ from PyEMD import EMD
 
 # ─────── CONFIG ───────
 BASE_PATH = r"C:\Users\chitt\Downloads\ICSV\Git\ICSV-Challenge\data"
-DRONE_TYPES = ["A", "B", "C"]
-MOVEMENTS = ["Front", "Back", "Left", "Right", "Clockwise", "CounterClockwise"]
+TRAIN_FOLDER = "train"  # Change this if your train data is in a different folder
 SAMPLE_RATE = 16000
 
 # ─────── HELPERS ───────
-
-def find_wav(base, subset, drone, move, flag):
-    folder = os.path.join(base, subset)
-    if not os.path.isdir(folder):
-        return None
-    for fn in os.listdir(folder):
-        if fn.lower().endswith(".wav") and f"_{drone}_{move}_{flag}" in fn:
-            return os.path.join(folder, fn)
-    return None
 
 def load_mono(path):
     y, sr = sf.read(path)
@@ -35,37 +25,37 @@ def to_pcm16(signal):
 
 # ─────── MAIN PROCESSING LOOP ───────
 
-for drone in DRONE_TYPES:
-    for mv in MOVEMENTS:
-        wav_path = find_wav(BASE_PATH, "train", drone, mv, "normal")
-        if not wav_path:
-            print(f"⚠️  Missing: {drone}_{mv}")
-            continue
+train_path = os.path.join(BASE_PATH, TRAIN_FOLDER)
 
-        print(f"🔧 Processing: {os.path.basename(wav_path)}")
+# Walk through all files in the train directory
+for root, dirs, files in os.walk(train_path):
+    for file in files:
+        if file.lower().endswith(".wav"):
+            wav_path = os.path.join(root, file)
+            print(f"🔧 Processing: {os.path.basename(wav_path)}")
 
-        try:
-            # Load and preprocess
-            y = load_mono(wav_path)
-            y = librosa.effects.preemphasis(y, coef=0.97)
+            try:
+                # Load and preprocess
+                y = load_mono(wav_path)
+                y = librosa.effects.preemphasis(y, coef=0.97)
 
-            # Apply EMD
-            emd = EMD()
-            imfs = emd(y)
+                # Apply EMD
+                emd = EMD()
+                imfs = emd(y)
 
-            if imfs.shape[0] < 9:
-                print(f"⚠️  Not enough IMFs to reconstruct low-frequency part: {wav_path}")
-                continue
+                if imfs.shape[0] < 9:
+                    print(f"⚠️  Not enough IMFs to reconstruct low-frequency part: {wav_path}")
+                    continue
 
-            # Reconstruct low-frequency part (IMFs 8+)
-            y_low = np.sum(imfs[8:, :], axis=0)
-            y_out = to_pcm16(y_low)
+                # Reconstruct low-frequency part (IMFs 8+)
+                y_low = np.sum(imfs[8:, :], axis=0)
+                y_out = to_pcm16(y_low)
 
-            # Overwrite original file
-            sf.write(wav_path, y_out, SAMPLE_RATE, subtype='PCM_16')
-            print(f"✅ Overwritten: {wav_path}")
+                # Overwrite original file
+                sf.write(wav_path, y_out, SAMPLE_RATE, subtype='PCM_16')
+                print(f"✅ Overwritten: {wav_path}")
 
-        except Exception as e:
-            print(f"❌ Error processing {wav_path}: {e}")
+            except Exception as e:
+                print(f"❌ Error processing {wav_path}: {e}")
 
 print("\n🎉 Done! All train audio files processed and replaced with low-frequency reconstructions.")
