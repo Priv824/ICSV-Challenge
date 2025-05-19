@@ -54,18 +54,9 @@ class BaselineDataLoader(Dataset):
     def __init__(
         self,
         file_list: List[str],
-        sr: int,
-        n_fft: int,
-        win_length: int,
-        hop_length: int,
-        n_mels: int,
-        power: float,
         feature_means: Optional[np.ndarray] = None
     ) -> None:
         self.file_list = file_list
-        self.sr = sr
-        self.n_fft = n_fft
-        self.hop_length = hop_length
         self.feature_means = feature_means
 
     def __len__(self) -> int:
