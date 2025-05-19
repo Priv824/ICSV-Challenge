@@ -116,7 +116,7 @@ def get_eval_loader(
     file_list = [os.path.join(args.eval_dir, file) for file in file_list]
     
     eval_dataloader = BaselineDataLoader(
-        file_list, args.sr, args.n_fft, args.win_length,
+        file_list, args.n_fft, args.win_length,
         args.hop_length, args.n_mels, args.power, feature_means
     )
 
