@@ -8,15 +8,23 @@ import numpy as np
 import dataset
 from gmm import load_gmm
 import utils
+import yaml
 
 
 def get_args() -> argparse.Namespace:
+    # Load parameters from YAML file
+    param_path = "./param.yaml"
+    with open(param_path) as f:
+        param = yaml.safe_load(f)
+    
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_dir", type=str, required=True, help="Directory containing the model")
-    parser.add_argument("--model_path", type=str, required=True, help="Name of the model file")
-    parser.add_argument("--result_dir", type=str, required=True, help="Directory to save results")
-    parser.add_argument("--gpu", type=int, default=0, help="GPU device index")
-    return parser.parse_args()
+    parser.add_argument("--model_dir", default=param["model_dir"], type=str, help="Directory containing the model")
+    parser.add_argument("--model_path", default=param["model_path"], type=str, help="Path to the model file")
+    parser.add_argument("--result_dir", default=param["result_dir"], type=str, help="Directory to save results")
+    parser.add_argument("--gpu", default=param["gpu"], type=int, help="GPU device index")
+    
+    args = parser.parse_args()
+    return args
 
 def eval(args: argparse.Namespace) -> None:
     print("Evaluation started...")
