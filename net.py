@@ -137,7 +137,7 @@ class WaveNet(nn.Module):
 
 def WaveNetModel() -> nn.Module:
     n_blocks = 3
-    n_channel = 128
+    n_channel = 10
     n_mul = 4
     frames = 63
     kernel_size = 3
