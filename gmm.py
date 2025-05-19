@@ -49,7 +49,7 @@ class GaussianMixture(nn.Module):
     
 
 class GMMAnomalyDetector:
-    def __init__(self, n_components=3, n_features=4, device='cuda'):
+    def __init__(self, n_components=5, n_features=4, device='cuda'):  # Increased components
         self.gmm = GaussianMixture(n_components, n_features).to(device)
         self.is_fitted = False
         self.device = device
@@ -57,12 +57,28 @@ class GMMAnomalyDetector:
         
     def fit(self, features: torch.Tensor, n_epochs=100, lr=1e-3):
         optimizer = torch.optim.Adam(self.gmm.parameters(), lr=lr)
+        best_loss = float('inf')
+        patience = 5
+        patience_counter = 0
         
         for epoch in range(n_epochs):
             optimizer.zero_grad()
             log_probs = self.gmm(features)
             loss = -torch.logsumexp(log_probs, dim=1).mean()
+            
+            # Early stopping
+            if loss.item() < best_loss:
+                best_loss = loss.item()
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                
+            if patience_counter >= patience:
+                print(f"Early stopping at epoch {epoch}")
+                break
+                
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.gmm.parameters(), max_norm=1.0)  # Add gradient clipping
             optimizer.step()
             
         self.is_fitted = True
@@ -70,14 +86,15 @@ class GMMAnomalyDetector:
     def score_samples(self, features: torch.Tensor) -> torch.Tensor:
         """
         Compute anomaly scores for input features.
-        Returns a tensor of scores where higher values indicate more anomalous samples.
+        Returns negative log-likelihood as anomaly scores.
         """
         if not self.is_fitted:
             raise RuntimeError("GMM not fitted yet")
+            
         log_probs = self.gmm(features)
-        # Take mean across components to get single score per sample
-        return -torch.logsumexp(log_probs, dim=1).mean(dim=0)  # Higher score = more anomalous
-    
+        # Use negative log-likelihood as anomaly score
+        return -torch.logsumexp(log_probs, dim=1)  # Remove mean to keep per-sample scores
+
 def save_gmm(gmm: GMMAnomalyDetector, feature_means: torch.Tensor, path: str):
     torch.save({
         'gmm_state_dict': gmm.gmm.state_dict(),

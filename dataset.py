@@ -45,15 +45,20 @@ def extract_features(
     wav_data, _ = torchaudio.load(wav_path)
     wav_data = wav_data.numpy()[0]  # Convert to mono numpy array
     
-    # Compute features
-    flatness = spectral_flatness(y=wav_data, n_fft=n_fft, hop_length=hop_length)
-    rolloff = spectral_rolloff(y=wav_data, sr=sr, n_fft=n_fft, hop_length=hop_length)
-    bandwidth = spectral_bandwidth(y=wav_data, sr=sr, n_fft=n_fft, hop_length=hop_length)
-    centroid = spectral_centroid(y=wav_data, sr=sr, n_fft=n_fft, hop_length=hop_length)
+    # Add windowing
+    window = np.hanning(n_fft)
     
-    # Stack features and take mean over time
+    # Compute features with overlapping windows
+    flatness = spectral_flatness(y=wav_data * window, n_fft=n_fft, hop_length=hop_length)
+    rolloff = spectral_rolloff(y=wav_data * window, sr=sr, n_fft=n_fft, hop_length=hop_length)
+    bandwidth = spectral_bandwidth(y=wav_data * window, sr=sr, n_fft=n_fft, hop_length=hop_length)
+    centroid = spectral_centroid(y=wav_data * window, sr=sr, n_fft=n_fft, hop_length=hop_length)
+    
+    # Stack features and use statistics over time
     features = np.vstack([flatness, rolloff, bandwidth, centroid])
-    features = features.mean(axis=1)  # [4]
+    features_mean = features.mean(axis=1)
+    features_std = features.std(axis=1)
+    features = np.concatenate([features_mean, features_std])  # [8]
     
     # Convert to tensor
     features = torch.from_numpy(features).float()
