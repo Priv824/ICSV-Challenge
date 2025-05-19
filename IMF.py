@@ -5,7 +5,7 @@ import librosa
 from PyEMD import EMD
 
 # ─────── CONFIG ───────
-BASE_PATH = r"C:\Users\chitt\Downloads\ICSV\Git\ICSV-Challenge\data"
+BASE_PATH = os.path.expanduser("~/ICSV-Surya/ICSV-Challenge/data")
 TRAIN_FOLDER = "eval"  # Change this if your train data is in a different folder
 SAMPLE_RATE = 16000
 
@@ -43,12 +43,12 @@ for root, dirs, files in os.walk(train_path):
                 emd = EMD()
                 imfs = emd(y)
 
-                if imfs.shape[0] < 9:
+                if imfs.shape[0] < 12:
                     print(f"⚠️  Not enough IMFs to reconstruct low-frequency part: {wav_path}")
                     continue
 
                 # Reconstruct low-frequency part (IMFs 8+)
-                y_low = np.sum(imfs[8:, :], axis=0)
+                y_low = np.sum(imfs[11:, :], axis=0)
                 y_out = to_pcm16(y_low)
 
                 # Overwrite original file
@@ -58,4 +58,4 @@ for root, dirs, files in os.walk(train_path):
             except Exception as e:
                 print(f"❌ Error processing {wav_path}: {e}")
 
-print("\n🎉 Done! All train audio files processed and replaced with low-frequency reconstructions.")
+print("\n🎉 Done! All eval audio files processed and replaced with low-frequency reconstructions.")
