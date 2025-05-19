@@ -68,10 +68,15 @@ class GMMAnomalyDetector:
         self.is_fitted = True
         
     def score_samples(self, features: torch.Tensor) -> torch.Tensor:
+        """
+        Compute anomaly scores for input features.
+        Returns a tensor of scores where higher values indicate more anomalous samples.
+        """
         if not self.is_fitted:
             raise RuntimeError("GMM not fitted yet")
         log_probs = self.gmm(features)
-        return -torch.logsumexp(log_probs, dim=1)  # Higher score = more anomalous
+        # Take mean across components to get single score per sample
+        return -torch.logsumexp(log_probs, dim=1).mean(dim=0)  # Higher score = more anomalous
     
 def save_gmm(gmm: GMMAnomalyDetector, feature_means: torch.Tensor, path: str):
     torch.save({
