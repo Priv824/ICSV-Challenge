@@ -20,7 +20,9 @@ def normalize_features(features: torch.Tensor, feature_means: torch.Tensor = Non
         feature_means = torch.mean(features, dim=0, keepdim=True)
     
     # Avoid division by zero
-    feature_means = torch.where(feature_means == 0, torch.tensor(1.0, device=feature_means.device), feature_means)
+    feature_means = torch.where(feature_means == 0, 
+                              torch.tensor(1.0, device=feature_means.device), 
+                              feature_means)
     normalized_features = features / feature_means
     
     return normalized_features, feature_means
@@ -45,9 +47,11 @@ def extract_features(
     features = np.vstack([flatness, rolloff, bandwidth, centroid])
     features = features.mean(axis=1)  # [4]
     
-    # Convert to tensor and move to same device as feature_means
+    # Convert to tensor
     features = torch.from_numpy(features).float()
-    if feature_means is not None:
+    
+    # Move to same device as feature_means if provided
+    if feature_means is not None and isinstance(feature_means, torch.Tensor):
         features = features.to(feature_means.device)
     
     # Normalize features

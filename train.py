@@ -51,7 +51,6 @@ def set_seed(seed: int) -> None:
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-
 def train(args: argparse.Namespace) -> None:
     print("Training started...")
     os.makedirs(args.result_dir, exist_ok=True)
@@ -69,11 +68,16 @@ def train(args: argparse.Namespace) -> None:
     
     feature_means = torch.mean(torch.cat(all_features), dim=0)
     
+    # Convert feature_means to numpy for dataloader compatibility
+    feature_means_np = feature_means.cpu().numpy()
+    
     # Second pass with normalized features
-    dataloader = dataset.get_train_loader(args, feature_means=feature_means.cpu().numpy())
+    dataloader = dataset.get_train_loader(args, feature_means=feature_means_np)
     normalized_features = []
     for data in tqdm(dataloader, desc="Collecting normalized features"):
-        normalized_features.append(data[0].to(device))
+        # Ensure data is on correct device
+        features = data[0].to(device)
+        normalized_features.append(features)
     
     normalized_features = torch.cat(normalized_features)
     
