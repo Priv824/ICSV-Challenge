@@ -1,6 +1,6 @@
 import argparse
 import os
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Union
 
 import numpy as np
 import torch
@@ -10,18 +10,26 @@ from librosa.feature import spectral_flatness, spectral_rolloff, spectral_bandwi
 
 import utils
 
-def normalize_features(features: torch.Tensor, feature_means: torch.Tensor = None) -> Tuple[torch.Tensor, torch.Tensor]:
+def normalize_features(features: torch.Tensor, feature_means: Optional[Union[torch.Tensor, np.ndarray]] = None) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Normalize features by dividing by their mean.
     If feature_means is None, calculates means from the input.
     Returns normalized features and the means used.
     """
+    # Convert feature_means to tensor if it's a numpy array
+    if isinstance(feature_means, np.ndarray):
+        feature_means = torch.from_numpy(feature_means).float()
+    
+    # Move feature_means to same device as features
+    if feature_means is not None:
+        feature_means = feature_means.to(features.device)
+    
     if feature_means is None:
         feature_means = torch.mean(features, dim=0, keepdim=True)
     
     # Avoid division by zero
     feature_means = torch.where(feature_means == 0, 
-                              torch.tensor(1.0, device=feature_means.device), 
+                              torch.tensor(1.0, device=features.device), 
                               feature_means)
     normalized_features = features / feature_means
     
