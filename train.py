@@ -81,8 +81,12 @@ def train(args: argparse.Namespace) -> None:
     
     normalized_features = torch.cat(normalized_features)
     
-    # Train GMM
-    gmm = GMMAnomalyDetector(n_components=3, n_features=normalized_features.shape[1], device=device)
+    # Train GMM with correct number of features
+    gmm = GMMAnomalyDetector(
+        n_components=3, 
+        n_features=8,  # 4 features × 2 statistics (mean and std)
+        device=device
+    )
     gmm.fit(normalized_features, n_epochs=args.epochs, lr=args.lr)
     
     # Save both GMM and feature means

@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from typing import Tuple
 import math
+from typing import Tuple
 
 class GaussianMixture(nn.Module):
-    def __init__(self, n_components=3, n_features=4):
+    def __init__(self, n_components=3, n_features=8):
         super().__init__()
         self.n_components = n_components
         self.n_features = n_features
@@ -13,8 +12,6 @@ class GaussianMixture(nn.Module):
         # Initialize parameters
         self.weights = nn.Parameter(torch.ones(n_components) / n_components)
         self.means = nn.Parameter(torch.randn(n_components, n_features))
-        
-        # Use diagonal covariance for stability
         self.logvars = nn.Parameter(torch.zeros(n_components, n_features))
         
     def forward(self, x):
@@ -22,40 +19,39 @@ class GaussianMixture(nn.Module):
         # x shape: [batch_size, n_features]
         batch_size = x.shape[0]
         
-        # Expand dimensions for broadcasting
+        # Reshape inputs for broadcasting
         x = x.unsqueeze(1)  # [batch_size, 1, n_features]
         means = self.means.unsqueeze(0)  # [1, n_components, n_features]
-        
-        # Compute squared Mahalanobis distance with diagonal covariance
-        diff = x - means  # [batch_size, n_components, n_features]
-        variances = torch.exp(self.logvars)
-        inv_variances = 1.0 / (variances + 1e-6)  # Add small epsilon for stability
-        
-        # Compute exponent term: -0.5 * Σ((x-μ)²/σ²)
-        exponent = -0.5 * torch.sum(diff.pow(2) * inv_variances.unsqueeze(0), dim=-1)
-        
-        # Compute log normalization term: -0.5 * (n_features*log(2π) + Σlog(σ²))
-        log_normalization = -0.5 * (self.n_features * math.log(2 * math.pi) + 
-                            torch.sum(self.logvars, dim=-1))
-        log_normalization = log_normalization.unsqueeze(0)  # [1, n_components]
+        logvars = self.logvars.unsqueeze(0)  # [1, n_components, n_features]
         
         # Compute log probabilities
-        log_probs = exponent + log_normalization
+        diff = x - means  # [batch_size, n_components, n_features]
+        log_vars = logvars  # [1, n_components, n_features]
         
-        # Add log weights
-        weighted_log_probs = log_probs + torch.log_softmax(self.weights, dim=0).unsqueeze(0)
+        # Compute log probability per dimension
+        log_prob = -0.5 * (
+            log_vars + 
+            (diff ** 2 / torch.exp(log_vars)) + 
+            math.log(2 * math.pi)
+        )
         
-        return weighted_log_probs
-    
+        # Sum over features
+        log_prob = log_prob.sum(-1)  # [batch_size, n_components]
+        
+        # Add log mixture weights
+        log_prob += torch.log_softmax(self.weights, dim=0)
+        
+        return log_prob
 
 class GMMAnomalyDetector:
-    def __init__(self, n_components=5, n_features=4, device='cuda'):  # Increased components
+    def __init__(self, n_components=5, n_features=8, device='cuda'):
         self.gmm = GaussianMixture(n_components, n_features).to(device)
         self.is_fitted = False
         self.device = device
         self.n_features = n_features
         
     def fit(self, features: torch.Tensor, n_epochs=100, lr=1e-3):
+        """Train the GMM on the given features"""
         optimizer = torch.optim.Adam(self.gmm.parameters(), lr=lr)
         best_loss = float('inf')
         patience = 5
@@ -78,22 +74,17 @@ class GMMAnomalyDetector:
                 break
                 
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.gmm.parameters(), max_norm=1.0)  # Add gradient clipping
+            torch.nn.utils.clip_grad_norm_(self.gmm.parameters(), max_norm=1.0)
             optimizer.step()
             
         self.is_fitted = True
-        
+    
     def score_samples(self, features: torch.Tensor) -> torch.Tensor:
-        """
-        Compute anomaly scores for input features.
-        Returns negative log-likelihood as anomaly scores.
-        """
+        """Compute anomaly scores for input features"""
         if not self.is_fitted:
             raise RuntimeError("GMM not fitted yet")
-            
         log_probs = self.gmm(features)
-        # Use negative log-likelihood as anomaly score
-        return -torch.logsumexp(log_probs, dim=1)  # Remove mean to keep per-sample scores
+        return -torch.logsumexp(log_probs, dim=1)
 
 def save_gmm(gmm: GMMAnomalyDetector, feature_means: torch.Tensor, path: str):
     torch.save({
