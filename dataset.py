@@ -10,17 +10,17 @@ from librosa.feature import spectral_flatness, spectral_rolloff, spectral_bandwi
 
 import utils
 
-def normalize_features(features: np.ndarray, feature_means: np.ndarray = None) -> Tuple[np.ndarray, np.ndarray]:
+def normalize_features(features: torch.Tensor, feature_means: torch.Tensor = None) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Normalize features by dividing by their mean.
     If feature_means is None, calculates means from the input.
     Returns normalized features and the means used.
     """
     if feature_means is None:
-        feature_means = np.mean(features, axis=0, keepdims=True)
+        feature_means = torch.mean(features, dim=0, keepdim=True)
     
     # Avoid division by zero
-    feature_means = np.where(feature_means == 0, 1, feature_means)
+    feature_means = torch.where(feature_means == 0, torch.tensor(1.0, device=feature_means.device), feature_means)
     normalized_features = features / feature_means
     
     return normalized_features, feature_means
@@ -30,8 +30,8 @@ def extract_features(
     sr: int,
     n_fft: int,
     hop_length: int,
-    feature_means: Optional[np.ndarray] = None
-) -> Tuple[torch.Tensor, np.ndarray]:
+    feature_means: Optional[torch.Tensor] = None
+) -> Tuple[torch.Tensor, torch.Tensor]:
     wav_data, _ = torchaudio.load(wav_path)
     wav_data = wav_data.numpy()[0]  # Convert to mono numpy array
     
@@ -45,10 +45,15 @@ def extract_features(
     features = np.vstack([flatness, rolloff, bandwidth, centroid])
     features = features.mean(axis=1)  # [4]
     
-    # Normalize features
-    normalized_features, used_means = normalize_features(features[np.newaxis, :], feature_means)
+    # Convert to tensor and move to same device as feature_means
+    features = torch.from_numpy(features).float()
+    if feature_means is not None:
+        features = features.to(feature_means.device)
     
-    return torch.from_numpy(normalized_features[0]).float(), used_means
+    # Normalize features
+    normalized_features, used_means = normalize_features(features.unsqueeze(0), feature_means)
+    
+    return normalized_features.squeeze(0), used_means.squeeze(0)
 
 class BaselineDataLoader(Dataset):
     def __init__(
