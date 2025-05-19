@@ -13,35 +13,40 @@ class GaussianMixture(nn.Module):
         # Initialize parameters
         self.weights = nn.Parameter(torch.ones(n_components) / n_components)
         self.means = nn.Parameter(torch.randn(n_components, n_features))
-        self.cov_factor = nn.Parameter(torch.randn(n_components, n_features, n_features))
         
-        # Diagonal covariance for numerical stability
-        self.cov_diag = nn.Parameter(torch.ones(n_components, n_features))
+        # Use diagonal covariance for stability
+        self.logvars = nn.Parameter(torch.zeros(n_components, n_features))
         
     def forward(self, x):
         """Compute log probabilities for each component"""
+        # x shape: [batch_size, n_features]
         batch_size = x.shape[0]
-        x = x.unsqueeze(1)  # [batch, 1, features]
         
-        # Compute covariance matrices
-        cov = torch.matmul(self.cov_factor, self.cov_factor.transpose(1, 2))
-        cov = cov + torch.diag_embed(self.cov_diag)
+        # Expand dimensions for broadcasting
+        x = x.unsqueeze(1)  # [batch_size, 1, n_features]
+        means = self.means.unsqueeze(0)  # [1, n_components, n_features]
         
-        # Compute Mahalanobis distance
-        diff = x - self.means.unsqueeze(0)  # [batch, components, features]
-        cov_inv = torch.inverse(cov)  # [components, features, features]
+        # Compute squared Mahalanobis distance with diagonal covariance
+        diff = x - means  # [batch_size, n_components, n_features]
+        variances = torch.exp(self.logvars)
+        inv_variances = 1.0 / (variances + 1e-6)  # Add small epsilon for stability
         
-        exponent = -0.5 * torch.einsum('bci,cij,bcj->bc', diff, cov_inv, diff)
+        # Compute exponent term: -0.5 * Σ((x-μ)²/σ²)
+        exponent = -0.5 * torch.sum(diff.pow(2) * inv_variances.unsqueeze(0), dim=-1)
+        
+        # Compute log normalization term: -0.5 * (n_features*log(2π) + Σlog(σ²))
+        log_normalization = -0.5 * (self.n_features * math.log(2 * math.pi) + 
+                            torch.sum(self.logvars, dim=-1))
+        log_normalization = log_normalization.unsqueeze(0)  # [1, n_components]
         
         # Compute log probabilities
-        log_det = torch.logdet(cov)  # [components]
-        log_2pi = math.log(2 * math.pi)
-        log_probs = exponent - 0.5 * (self.n_features * log_2pi + log_det.unsqueeze(0))
+        log_probs = exponent + log_normalization
         
-        # Weighted log probabilities
-        weighted_log_probs = log_probs + torch.log(F.softmax(self.weights, dim=0)).unsqueeze(0)
+        # Add log weights
+        weighted_log_probs = log_probs + torch.log_softmax(self.weights, dim=0).unsqueeze(0)
         
         return weighted_log_probs
+    
 
 class GMMAnomalyDetector:
     def __init__(self, n_components=3, n_features=4, device='cuda'):
@@ -51,19 +56,11 @@ class GMMAnomalyDetector:
         self.n_features = n_features
         
     def fit(self, features: torch.Tensor, n_epochs=100, lr=1e-3):
-        """Train GMM using expectation-maximization"""
         optimizer = torch.optim.Adam(self.gmm.parameters(), lr=lr)
         
         for epoch in range(n_epochs):
-            # E-step: compute responsibilities
-            log_probs = self.gmm(features)
-            log_responsibilities = log_probs - torch.logsumexp(log_probs, dim=1, keepdim=True)
-            responsibilities = torch.exp(log_responsibilities)
-            
-            # M-step: update parameters
             optimizer.zero_grad()
-            
-            # Negative log likelihood loss
+            log_probs = self.gmm(features)
             loss = -torch.logsumexp(log_probs, dim=1).mean()
             loss.backward()
             optimizer.step()
@@ -75,7 +72,7 @@ class GMMAnomalyDetector:
             raise RuntimeError("GMM not fitted yet")
         log_probs = self.gmm(features)
         return -torch.logsumexp(log_probs, dim=1)  # Higher score = more anomalous
-
+    
 def save_gmm(gmm: GMMAnomalyDetector, feature_means: torch.Tensor, path: str):
     torch.save({
         'gmm_state_dict': gmm.gmm.state_dict(),
