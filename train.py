@@ -57,30 +57,33 @@ def train(args: argparse.Namespace) -> None:
     os.makedirs(args.result_dir, exist_ok=True)
     os.makedirs(args.model_dir, exist_ok=True)
 
+    # Set device
+    device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
+
     # First pass to calculate feature means
     dataloader = dataset.get_train_loader(args)
     all_features = []
     for data in tqdm(dataloader, desc="Calculating feature means"):
-        all_features.append(data[0].numpy())
+        all_features.append(data[0].to(device))
     
-    feature_means = np.mean(np.vstack(all_features), axis=0)
+    feature_means = torch.mean(torch.cat(all_features), dim=0)
     
     # Second pass with normalized features
-    dataloader = dataset.get_train_loader(args, feature_means=feature_means)
+    dataloader = dataset.get_train_loader(args, feature_means=feature_means.cpu().numpy())
     normalized_features = []
     for data in tqdm(dataloader, desc="Collecting normalized features"):
-        normalized_features.append(data[0].numpy())
+        normalized_features.append(data[0].to(device))
     
-    normalized_features = np.vstack(normalized_features)
+    normalized_features = torch.cat(normalized_features)
     
     # Train GMM
-    gmm = GMMAnomalyDetector(n_components=3)
-    gmm.fit(normalized_features)
+    gmm = GMMAnomalyDetector(n_components=3, n_features=normalized_features.shape[1], device=device)
+    gmm.fit(normalized_features, n_epochs=args.epochs, lr=args.lr)
     
     # Save both GMM and feature means
     save_gmm(gmm, feature_means, os.path.join(args.model_dir, args.model_path))
     print(f"Model saved to {os.path.join(args.model_dir, args.model_path)}")
-
 
 if __name__ == "__main__":
     args = get_args()
