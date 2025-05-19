@@ -10,7 +10,6 @@ from gmm import load_gmm
 import utils
 import yaml
 
-
 def get_args() -> argparse.Namespace:
     # Load parameters from YAML file
     param_path = "./param.yaml"
@@ -18,23 +17,41 @@ def get_args() -> argparse.Namespace:
         param = yaml.safe_load(f)
     
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_dir", default=param["model_dir"], type=str, help="Directory containing the model")
-    parser.add_argument("--model_path", default=param["model_path"], type=str, help="Path to the model file")
-    parser.add_argument("--result_dir", default=param["result_dir"], type=str, help="Directory to save results")
-    parser.add_argument("--eval_dir", default=param["eval_dir"], type=str, help="Directory containing evaluation data")
-    parser.add_argument("--train_dir", default=param["train_dir"], type=str, help="Directory containing training data")
-    parser.add_argument("--gpu", default=param["gpu"], type=int, help="GPU device index")
+    # Model parameters
+    parser.add_argument("--model_dir", default=param["model_dir"], type=str)
+    parser.add_argument("--model_path", default=param["model_path"], type=str)
+    parser.add_argument("--result_dir", default=param["result_dir"], type=str)
+    
+    # Data parameters
+    parser.add_argument("--eval_dir", default=param["eval_dir"], type=str)
+    
+    # Audio processing parameters
+    parser.add_argument("--sr", default=param["sr"], type=int)
+    parser.add_argument("--n_fft", default=param["n_fft"], type=int)
+    parser.add_argument("--win_length", default=param["win_length"], type=int)
+    parser.add_argument("--hop_length", default=param["hop_length"], type=int)
+    parser.add_argument("--n_mels", default=param["n_mels"], type=int)
+    parser.add_argument("--power", default=param["power"], type=float)
+    
+    # Hardware parameters
+    parser.add_argument("--gpu", default=param["gpu"], type=int)
     
     args = parser.parse_args()
     return args
-
 def eval(args: argparse.Namespace) -> None:
     print("Evaluation started...")
+    os.makedirs(args.result_dir, exist_ok=True)
 
     # Load GMM and feature means
     model_path = os.path.join(args.model_dir, args.model_path)
-    gmm, feature_means = load_gmm(model_path)
+    gmm, feature_means = load_gmm(model_path, device=f'cuda:{args.gpu}')
     
+    # Verify all required audio parameters exist
+    required_audio_params = ['sr', 'n_fft', 'win_length', 'hop_length', 'n_mels', 'power']
+    for param in required_audio_params:
+        if not hasattr(args, param):
+            raise ValueError(f"Missing required audio parameter: {param}")
+
     dataloader, file_list = dataset.get_eval_loader(args, feature_means=feature_means)
 
     score_list = [["File", "Score"]]
