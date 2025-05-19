@@ -2,45 +2,45 @@ import argparse
 import os
 
 import torch
+import numpy as np
 
 import dataset
-import net
-import train
+from gmm import load_gmm
 import utils
 
 
 def test(args: argparse.Namespace) -> None:
     print("Test started...")
 
-    model = net.WaveNetModel().cuda()
-
+    # Load GMM and feature means
     model_path = os.path.join(args.model_dir, args.model_path)
-    model.load_state_dict(torch.load(model_path, weights_only=True))
-
-    dataloader, file_list = dataset.get_test_loader(args)
-
-    criterion = torch.nn.MSELoss()
-
-    model.eval()
+    gmm, feature_means = load_gmm(model_path)
+    
+    dataloader, file_list = dataset.get_test_loader(args, feature_means=feature_means)
 
     score_list = [["File", "Score"]]
 
     for idx, data in enumerate(dataloader):
-        log_mel = data[0].cuda()
-
-        recon_log_mel = model(log_mel)
-
-        loss = criterion(recon_log_mel, log_mel[..., model.get_receptive_field() :])
-
+        features = data[0].numpy()[np.newaxis, :]  # [1, 4]
+        score = gmm.score_samples(features)[0]
+        
         file_name = os.path.splitext(file_list[idx].split("/")[-1])[0]
-
-        score_list.append([file_name, loss.item()])
+        score_list.append([file_name, score])
 
     utils.save_csv(score_list, os.path.join(args.result_dir, "test_score.csv"))
+    print(f"Test scores saved to {os.path.join(args.result_dir, 'test_score.csv')}")
 
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model_dir", type=str, required=True, help="Directory containing the model")
+    parser.add_argument("--model_path", type=str, required=True, help="Path to the model file")
+    parser.add_argument("--result_dir", type=str, required=True, help="Directory to save results")
+    parser.add_argument("--gpu", type=int, default=0, help="GPU device index")
+    return parser.parse_args()
 
 if __name__ == "__main__":
-    args = train.get_args()
+    args = get_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
     test(args)

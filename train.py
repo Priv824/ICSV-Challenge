@@ -1,12 +1,13 @@
 import argparse
 import os
 
+import numpy as np
 import torch
 import yaml
 from tqdm import tqdm
 
 import dataset
-import net
+from gmm import GMMAnomalyDetector, save_gmm
 import utils
 
 
@@ -56,31 +57,29 @@ def train(args: argparse.Namespace) -> None:
     os.makedirs(args.result_dir, exist_ok=True)
     os.makedirs(args.model_dir, exist_ok=True)
 
-    model = net.WaveNetModel().cuda()
-
+    # First pass to calculate feature means
     dataloader = dataset.get_train_loader(args)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    criterion = torch.nn.MSELoss()
-
-    for epoch in range(args.epochs):
-        print(f"Epoch {epoch+1}/{args.epochs}")
-        model.train()
-
-        p_bar = tqdm(dataloader, total=len(dataloader), desc="Training", ncols=100)
-        for data in p_bar:
-            log_mel = data[0].cuda()
-
-            recon_log_mel = model(log_mel)
-
-            loss = criterion(recon_log_mel, log_mel[..., model.get_receptive_field() :])
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            p_bar.set_description(f"Epoch {epoch + 1}, Loss: {loss.item():.4f}")
-
-    utils.save_model(model, os.path.join(args.model_dir, args.model_path))
+    all_features = []
+    for data in tqdm(dataloader, desc="Calculating feature means"):
+        all_features.append(data[0].numpy())
+    
+    feature_means = np.mean(np.vstack(all_features), axis=0)
+    
+    # Second pass with normalized features
+    dataloader = dataset.get_train_loader(args, feature_means=feature_means)
+    normalized_features = []
+    for data in tqdm(dataloader, desc="Collecting normalized features"):
+        normalized_features.append(data[0].numpy())
+    
+    normalized_features = np.vstack(normalized_features)
+    
+    # Train GMM
+    gmm = GMMAnomalyDetector(n_components=3)
+    gmm.fit(normalized_features)
+    
+    # Save both GMM and feature means
+    save_gmm(gmm, feature_means, os.path.join(args.model_dir, args.model_path))
+    print(f"Model saved to {os.path.join(args.model_dir, args.model_path)}")
 
 
 if __name__ == "__main__":
