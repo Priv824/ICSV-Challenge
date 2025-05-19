@@ -6,7 +6,7 @@ from PyEMD import EMD
 
 # ─────── CONFIG ───────
 BASE_PATH = os.path.expanduser("~/ICSV-Surya/ICSV-Challenge/data")
-TRAIN_FOLDER = "eval"  # Change this if your train data is in a different folder
+TRAIN_FOLDER = "train"  # Change this if your train data is in a different folder
 SAMPLE_RATE = 16000
 
 # ─────── HELPERS ───────
@@ -58,4 +58,4 @@ for root, dirs, files in os.walk(train_path):
             except Exception as e:
                 print(f"❌ Error processing {wav_path}: {e}")
 
-print("\n🎉 Done! All eval audio files processed and replaced with low-frequency reconstructions.")
+print("\n🎉 Done! All train audio files processed and replaced with low-frequency reconstructions.")
