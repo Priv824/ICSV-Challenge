@@ -15,8 +15,10 @@ gpu: 0
 n_workers: 1
 
 sr: 16000
-n_fft: 1024
-win_length: 1024
+n_fft: 2048
+win_length: 2048
 hop_length: 512
-n_mels: 128
+n_mels: 10
 power: 2.0
+fmin: 0
+fmax: 100

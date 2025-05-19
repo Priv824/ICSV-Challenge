@@ -38,6 +38,8 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--hop-length", default=param["hop_length"], type=int)
     parser.add_argument("--n-mels", default=param["n_mels"], type=int)
     parser.add_argument("--power", default=param["power"], type=float)
+    parser.add_argument("--fmin", default=param["fmin"], type=float)
+    parser.add_argument("--fmax", default=param["fmax"], type=float)
 
     args = parser.parse_args()
     return args

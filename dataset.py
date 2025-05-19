@@ -17,6 +17,8 @@ def wav_to_log_mel(
     hop_length: int,
     n_mels: int,
     power: float,
+    fmin: float = 0.0,
+    fmax: float = 100.0,
 ) -> torch.Tensor:
     mel_transform = torchaudio.transforms.MelSpectrogram(
         sample_rate=sr,
@@ -25,6 +27,8 @@ def wav_to_log_mel(
         hop_length=hop_length,
         n_mels=n_mels,
         power=power,
+        f_min=fmin,
+        f_max=fmax,
     )
 
     wav_data, _ = torchaudio.load(wav_path)
