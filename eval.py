@@ -21,6 +21,8 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--model_dir", default=param["model_dir"], type=str, help="Directory containing the model")
     parser.add_argument("--model_path", default=param["model_path"], type=str, help="Path to the model file")
     parser.add_argument("--result_dir", default=param["result_dir"], type=str, help="Directory to save results")
+    parser.add_argument("--eval_dir", default=param["eval_dir"], type=str, help="Directory containing evaluation data")
+    parser.add_argument("--train_dir", default=param["train_dir"], type=str, help="Directory containing training data")
     parser.add_argument("--gpu", default=param["gpu"], type=int, help="GPU device index")
     
     args = parser.parse_args()
