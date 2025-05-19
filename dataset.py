@@ -70,10 +70,10 @@ def extract_features(
     
     # Stack all frame features
     features = np.stack(features_list, axis=1)  # [4, n_frames]
-    
-    # Compute statistics over time
     features_mean = np.mean(features, axis=1)
     features_std = np.std(features, axis=1)
+    print("features_mean shape:", features_mean.shape)
+    print("features_std shape:", features_std.shape)
     features = np.concatenate([features_mean, features_std])  # [8]
     
     # Convert to tensor

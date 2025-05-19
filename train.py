@@ -75,8 +75,9 @@ def train(args: argparse.Namespace) -> None:
     dataloader = dataset.get_train_loader(args, feature_means=feature_means_np)
     normalized_features = []
     for data in tqdm(dataloader, desc="Collecting normalized features"):
-        # Ensure data is on correct device
         features = data[0].to(device)
+        if features.shape[-1] != 8:
+            raise ValueError(f"Expected 8 features, got {features.shape}")
         normalized_features.append(features)
     
     normalized_features = torch.cat(normalized_features)
