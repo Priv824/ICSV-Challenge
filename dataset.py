@@ -45,19 +45,35 @@ def extract_features(
     wav_data, _ = torchaudio.load(wav_path)
     wav_data = wav_data.numpy()[0]  # Convert to mono numpy array
     
-    # Add windowing
+    # Create overlapping frames
+    n_frames = 1 + (len(wav_data) - n_fft) // hop_length
+    frames = np.lib.stride_tricks.as_strided(
+        wav_data,
+        shape=(n_frames, n_fft),
+        strides=(hop_length * wav_data.itemsize, wav_data.itemsize)
+    )
+    
+    # Apply window to all frames
     window = np.hanning(n_fft)
+    frames = frames * window[None, :]
     
-    # Compute features with overlapping windows
-    flatness = spectral_flatness(y=wav_data * window, n_fft=n_fft, hop_length=hop_length)
-    rolloff = spectral_rolloff(y=wav_data * window, sr=sr, n_fft=n_fft, hop_length=hop_length)
-    bandwidth = spectral_bandwidth(y=wav_data * window, sr=sr, n_fft=n_fft, hop_length=hop_length)
-    centroid = spectral_centroid(y=wav_data * window, sr=sr, n_fft=n_fft, hop_length=hop_length)
+    # Compute features for each frame
+    features_list = []
+    for frame in frames:
+        frame_features = np.array([
+            spectral_flatness(y=frame, n_fft=n_fft, hop_length=n_fft)[0],
+            spectral_rolloff(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0],
+            spectral_bandwidth(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0],
+            spectral_centroid(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0]
+        ])
+        features_list.append(frame_features)
     
-    # Stack features and use statistics over time
-    features = np.vstack([flatness, rolloff, bandwidth, centroid])
-    features_mean = features.mean(axis=1)
-    features_std = features.std(axis=1)
+    # Stack all frame features
+    features = np.stack(features_list, axis=1)  # [4, n_frames]
+    
+    # Compute statistics over time
+    features_mean = np.mean(features, axis=1)
+    features_std = np.std(features, axis=1)
     features = np.concatenate([features_mean, features_std])  # [8]
     
     # Convert to tensor
