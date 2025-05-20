@@ -72,41 +72,37 @@ def eval(args: argparse.Namespace) -> None:
     file_list = []
     y_true = []
     drone_labels = []
+    likelihood_scores = []  # Store likelihood scores for each file
+
     for f in sorted(os.listdir(args.eval_dir)):
         if f.endswith('.wav'):
             wav_path = os.path.join(args.eval_dir, f)
             file_list.append(wav_path)
             y_true.append(1 if utils.get_anomaly_label(wav_path) > 0 else 0)
             drone_labels.append(utils.get_drone_label(wav_path))
-    
-    # Score files
-    score_list = [["File", "Score"]]
-    y_pred = []
-    likelihood_scores = []  # Store likelihood scores for histogram
+            
+            # Extract features and compute likelihood scores for the entire file
+            frames = extract_features(wav_path, args.sr, args.n_fft, args.hop_length)
+            log_probs = gmm.gmm.score_samples(frames.to(device))
+            avg_log_prob = log_probs.mean().item()  # Average likelihood score for the file
+            likelihood_scores.append(avg_log_prob)  # Store the average score
 
-    for wav_path in tqdm(file_list, desc="Processing files"):
-        frames = extract_features(wav_path, args.sr, args.n_fft, args.hop_length)
-        score = gmm.score_file(frames.to(device))
-        y_pred.append(score)
-        
-        # Get likelihood scores for plotting
-        log_probs = gmm.gmm.score_samples(frames.to(device))
-        likelihood_scores.extend(log_probs.detach().cpu().numpy())  # Store likelihood scores
-
-        file_name = os.path.splitext(os.path.basename(wav_path))[0]
-        score_list.append([file_name, score])
+    # Convert y_true to a NumPy array for consistency
+    y_true = np.array(y_true)
 
     # Save scores
+    score_list = [["File", "Score"]]
+    for file_name, score in zip(file_list, likelihood_scores):
+        score_list.append([os.path.basename(file_name), score])
     utils.save_csv(score_list, os.path.join(args.result_dir, "eval_scores.csv"))
     
     # Calculate metrics
-    auc = metrics.roc_auc_score(y_true, y_pred)
+    auc = metrics.roc_auc_score(y_true, likelihood_scores)
     print(f"\nOverall AUC: {auc:.4f}")
     
     # Save likelihood histogram plot
-    likelihood_scores = np.array(likelihood_scores)
     hist_save_path = os.path.join(args.result_dir, "likelihood_histogram.png")
-    plot_likelihood_histogram(likelihood_scores, np.array(y_true), hist_save_path)
+    plot_likelihood_histogram(np.array(likelihood_scores), y_true, hist_save_path)
     print(f"Likelihood histogram saved to {hist_save_path}")
 
     # Per-drone metrics
@@ -117,7 +113,7 @@ def eval(args: argparse.Namespace) -> None:
             continue
             
         drone_true = [y_true[idx] for idx in indices]
-        drone_pred = [y_pred[idx] for idx in indices]
+        drone_pred = [likelihood_scores[idx] for idx in indices]
         drone_auc = metrics.roc_auc_score(drone_true, drone_pred)
         print(f"Drone {drone} AUC: {drone_auc:.4f}")
 
@@ -125,4 +121,3 @@ if __name__ == "__main__":
     args = get_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
     eval(args)
-
