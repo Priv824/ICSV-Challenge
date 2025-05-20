@@ -1,25 +1,23 @@
 import argparse
 import os
-
-import sklearn.metrics as metrics
 import torch
 import numpy as np
 from tqdm import tqdm
-
-import dataset
-import gmm
-from gmm import GMMAnomalyDetector
-import utils
-from utils import extract_features
+import sklearn.metrics as metrics
 import yaml
 
+from dataset import extract_features
+from gmm import GMMAnomalyDetector
+import utils
+
 def get_args() -> argparse.Namespace:
-    # Load parameters from YAML file
+    """Load and parse command line arguments"""
     param_path = "./param.yaml"
     with open(param_path) as f:
         param = yaml.safe_load(f)
     
     parser = argparse.ArgumentParser()
+    
     # Model parameters
     parser.add_argument("--model_dir", default=param["model_dir"], type=str)
     parser.add_argument("--model_path", default=param["model_path"], type=str)
@@ -31,10 +29,7 @@ def get_args() -> argparse.Namespace:
     # Audio processing parameters
     parser.add_argument("--sr", default=param["sr"], type=int)
     parser.add_argument("--n_fft", default=param["n_fft"], type=int)
-    parser.add_argument("--win_length", default=param["win_length"], type=int)
     parser.add_argument("--hop_length", default=param["hop_length"], type=int)
-    parser.add_argument("--n_mels", default=param["n_mels"], type=int)
-    parser.add_argument("--power", default=param["power"], type=float)
     
     # Hardware parameters
     parser.add_argument("--gpu", default=param["gpu"], type=int)
@@ -42,22 +37,60 @@ def get_args() -> argparse.Namespace:
     args = parser.parse_args()
     return args
 
-def evaluate(args):
-    device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu')
+def eval(args: argparse.Namespace) -> None:
+    print("Evaluation started...")
+    os.makedirs(args.result_dir, exist_ok=True)
+
+    device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu')
     
-    # Load model
-    gmm = GMMAnomalyDetector(device=device)
-    gmm.gmm.load_state_dict(torch.load(args.model_path))
+    # Load GMM
+    model_path = os.path.join(args.model_dir, args.model_path)
+    gmm = GMMAnomalyDetector(n_components=3, n_features=4, device=device)
+    gmm.gmm.load_state_dict(torch.load(model_path))
+    
+    # Get file list and labels
+    file_list = []
+    y_true = []
+    drone_labels = []
+    for f in sorted(os.listdir(args.eval_dir)):
+        if f.endswith('.wav'):
+            wav_path = os.path.join(args.eval_dir, f)
+            file_list.append(wav_path)
+            y_true.append(1 if utils.get_anomaly_label(wav_path) > 0 else 0)
+            drone_labels.append(utils.get_drone_label(wav_path))
     
     # Score files
-    file_list = [os.path.join(args.eval_dir, f) for f in os.listdir(args.eval_dir)]
-    scores = []
-    for wav_path in tqdm(file_list):
+    score_list = [["File", "Score"]]
+    y_pred = []
+    
+    for wav_path in tqdm(file_list, desc="Processing files"):
         frames = extract_features(wav_path, args.sr, args.n_fft, args.hop_length)
-        score = gmm.score_file(frames)
-        scores.append((wav_path, score))
+        score = gmm.score_file(frames.to(device))
+        y_pred.append(score)
+        
+        file_name = os.path.splitext(os.path.basename(wav_path))[0]
+        score_list.append([file_name, score])
+
+    # Save scores
+    utils.save_csv(score_list, os.path.join(args.result_dir, "eval_scores.csv"))
+    
+    # Calculate metrics
+    auc = metrics.roc_auc_score(y_true, y_pred)
+    print(f"\nOverall AUC: {auc:.4f}")
+    
+    # Per-drone metrics
+    drone_types = ["A", "B", "C"]
+    for i, drone in enumerate(drone_types):
+        indices = [idx for idx, label in enumerate(drone_labels) if label == i]
+        if not indices:
+            continue
+            
+        drone_true = [y_true[idx] for idx in indices]
+        drone_pred = [y_pred[idx] for idx in indices]
+        drone_auc = metrics.roc_auc_score(drone_true, drone_pred)
+        print(f"Drone {drone} AUC: {drone_auc:.4f}")
+
 if __name__ == "__main__":
     args = get_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
-
     eval(args)

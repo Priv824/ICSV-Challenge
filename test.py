@@ -1,54 +1,54 @@
 import argparse
 import os
-
 import torch
-import numpy as np
 from tqdm import tqdm
 
-import dataset
-from gmm import load_gmm
+from dataset import extract_features
+from gmm import GMMAnomalyDetector
 import utils
-from utils import extract_features
-
-
-def test(args):
-    device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu')
-    
-    # Load the trained GMM model
-    gmm = load_gmm(args.model_path, device)
-    
-    # Create result directory
-    os.makedirs(args.result_dir, exist_ok=True)
-    
-    # Process test files
-    test_files = [os.path.join(args.test_dir, f) for f in os.listdir(args.test_dir)]
-    results = []
-    
-    for wav_path in tqdm(test_files):
-        # Extract features
-        frames = extract_features(wav_path, args.sr, args.n_fft, args.hop_length)
-        
-        # Calculate anomaly scores
-        scores = gmm.score_samples(frames)
-        anomaly_score = -scores.mean().item()  # Using negative log-likelihood as anomaly score
-        
-        # Store results
-        filename = os.path.basename(wav_path)
-        results.append({'file': filename, 'anomaly_score': anomaly_score})
-        
-    # Save results
-    utils.save_results(results, os.path.join(args.result_dir, 'results.csv'))
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_dir", type=str, required=True, help="Directory containing the model")
     parser.add_argument("--model_path", type=str, required=True, help="Path to the model file")
+    parser.add_argument("--test_dir", type=str, required=True, help="Directory containing test files")
     parser.add_argument("--result_dir", type=str, required=True, help="Directory to save results")
+    parser.add_argument("--sr", type=int, default=16000, help="Sample rate")
+    parser.add_argument("--n_fft", type=int, default=2048, help="FFT window size")
+    parser.add_argument("--hop_length", type=int, default=512, help="Hop length between frames")
     parser.add_argument("--gpu", type=int, default=0, help="GPU device index")
     return parser.parse_args()
+
+def test(args: argparse.Namespace) -> None:
+    print("Test started...")
+    os.makedirs(args.result_dir, exist_ok=True)
+
+    device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu')
+    
+    # Load GMM
+    model_path = os.path.join(args.model_dir, args.model_path)
+    gmm = GMMAnomalyDetector(n_components=3, n_features=4, device=device)
+    gmm.gmm.load_state_dict(torch.load(model_path))
+    
+    # Get test files
+    file_list = [os.path.join(args.test_dir, f) for f in sorted(os.listdir(args.test_dir)) 
+                if f.endswith('.wav')]
+    
+    # Score files
+    score_list = [["File", "Score"]]
+    
+    for wav_path in tqdm(file_list, desc="Processing test files"):
+        frames = extract_features(wav_path, args.sr, args.n_fft, args.hop_length)
+        score = gmm.score_file(frames.to(device))
+        
+        file_name = os.path.splitext(os.path.basename(wav_path))[0]
+        score_list.append([file_name, score])
+
+    # Save results
+    utils.save_csv(score_list, os.path.join(args.result_dir, "test_scores.csv"))
+    print(f"Test scores saved to {os.path.join(args.result_dir, 'test_scores.csv')}")
 
 if __name__ == "__main__":
     args = get_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
-
     test(args)
