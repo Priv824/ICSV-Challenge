@@ -61,11 +61,10 @@ def eval(args: argparse.Namespace) -> None:
     print("Evaluation started...")
     os.makedirs(args.result_dir, exist_ok=True)
 
-    device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu')
-    
+    device = 'cpu'
     # Load GMM
     model_path = os.path.join(args.model_dir, args.model_path)
-    gmm = GMMAnomalyDetector(n_components=args.n_components, n_features=4, device=device)
+    gmm = GMMAnomalyDetector(n_components=args.n_components, n_features=4, device='cpu')
     gmm.gmm.load_state_dict(torch.load(model_path))
     
     # Get file list and labels
