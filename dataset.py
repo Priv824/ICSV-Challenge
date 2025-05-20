@@ -116,22 +116,22 @@ class BaselineDataLoader(Dataset):
     def __len__(self) -> int:
         return len(self.file_list)
 
-def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int, int, int]:
-    wav_path = self.file_list[idx]
-    features, _ = extract_features(
-        wav_path,
-        self.sr,
-        self.n_fft,
-        self.hop_length,
-        self.feature_means
-    )
-    
-    anomaly_label = utils.get_anomaly_label(wav_path)
-    drone_label = utils.get_drone_label(wav_path)
-    direction_label = utils.get_direction_label(wav_path)
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int, int, int]:
+        wav_path = self.file_list[idx]
+        features, _ = extract_features(
+            wav_path,
+            self.sr,
+            self.n_fft,
+            self.hop_length,
+            self.feature_means
+        )
+        
+        anomaly_label = utils.get_anomaly_label(wav_path)
+        drone_label = utils.get_drone_label(wav_path)
+        direction_label = utils.get_direction_label(wav_path)
 
-    # Ensure features are 1D (shape [8])
-    return features, anomaly_label, drone_label, direction_label
+        # Ensure features are 1D (shape [8])
+        return features, anomaly_label, drone_label, direction_label
 
 def get_train_loader(
     args: argparse.Namespace,
