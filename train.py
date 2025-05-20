@@ -53,6 +53,8 @@ def train(args: argparse.Namespace) -> None:
     """Main training function"""
     print("Training started...")
     os.makedirs(args.model_dir, exist_ok=True)
+
+    print(torch.cuda.device_count())
     
     device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
