@@ -1,6 +1,7 @@
 import argparse
 import os
 import torch
+import yaml
 from tqdm import tqdm
 
 from dataset import extract_features
@@ -8,17 +9,23 @@ from gmm import GMMAnomalyDetector
 import utils
 
 def get_args():
+    """Load and parse command line arguments"""
+    param_path = "./param.yaml"
+    with open(param_path) as f:
+        param = yaml.safe_load(f)
+    
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_dir", type=str, required=True, help="Directory containing the model")
+
+    parser.add_argument("--model_dir", type=str, default=param["model_dir"], help="Directory containing the model")
     parser.add_argument("--model_path", type=str, required=True, help="Path to the model file")
-    parser.add_argument("--test_dir", type=str, required=True, help="Directory containing test files")
-    parser.add_argument("--result_dir", type=str, required=True, help="Directory to save results")
-    parser.add_argument("--sr", type=int, default=16000, help="Sample rate")
-    parser.add_argument("--n_fft", type=int, default=2048, help="FFT window size")
-    parser.add_argument("--hop_length", type=int, default=512, help="Hop length between frames")
-    parser.add_argument("--gpu", type=int, default=0, help="GPU device index")
-    parser.add_argument("--n-components", type=int, default=5)
-    parser.add_argument("--reg-covar", type=float, default=1e-6)
+    parser.add_argument("--test_dir", type=str, default=param["test_dir"], help="Directory containing test files")
+    parser.add_argument("--result_dir", type=str, default=param["result_dir"], help="Directory to save results")
+    parser.add_argument("--sr", type=int, default=param["sr"], help="Sample rate")
+    parser.add_argument("--n_fft", type=int, default=param["n_fft"], help="FFT window size")
+    parser.add_argument("--hop_length", type=int, default=param["hop_length"], help="Hop length between frames")
+    parser.add_argument("--gpu", type=int, default=param["gpu"], help="GPU device index")
+    parser.add_argument("--n-components", type=int, default=param["n_components"], help="Number of GMM components")
+    parser.add_argument("--reg-covar", type=float, default=param["reg_covar"])
     return parser.parse_args()
 
 def test(args: argparse.Namespace) -> None:

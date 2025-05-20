@@ -31,8 +31,8 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--sr", default=param["sr"], type=int)
     parser.add_argument("--n_fft", default=param["n_fft"], type=int)
     parser.add_argument("--hop_length", default=param["hop_length"], type=int)
-    parser.add_argument("--n-components", type=int, default=5)
-    parser.add_argument("--reg-covar", type=float, default=1e-6)
+    parser.add_argument("--n-components", type=int, default=param["n_components"])
+    parser.add_argument("--reg-covar", type=float, default=param["reg_covar"])
     
     # Hardware parameters
     parser.add_argument("--gpu", default=param["gpu"], type=int)

@@ -27,10 +27,10 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--epochs", default=param["epochs"], type=int)
     parser.add_argument("--batch-size", default=param["batch_size"], type=int)
     parser.add_argument("--lr", default=param["lr"], type=float)
-    parser.add_argument("--n-components", default=5, type=int)
-    parser.add_argument("--max-iter", default=100, type=int)
-    parser.add_argument("--tol", default=1e-4, type=float)
-    parser.add_argument("--reg-covar", default=1e-6, type=float)
+    parser.add_argument("--n-components", default=param["n_components"], type=int)
+    parser.add_argument("--max-iter", default=param["max_iter"], type=int)
+    parser.add_argument("--tol", default=param["tol"], type=float)
+    parser.add_argument("--reg-covar", default=param["reg_covar"], type=float)
     
     # Hardware parameters
     parser.add_argument("--gpu", default=param["gpu"], type=int)
@@ -40,7 +40,6 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--sr", default=param["sr"], type=int)
     parser.add_argument("--n-fft", default=param["n_fft"], type=int)
     parser.add_argument("--hop-length", default=param["hop_length"], type=int)
-    
     args = parser.parse_args()
     return args
 
