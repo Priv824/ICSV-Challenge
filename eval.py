@@ -5,6 +5,7 @@ import numpy as np
 from tqdm import tqdm
 import sklearn.metrics as metrics
 import yaml
+import matplotlib.pyplot as plt  # Import Matplotlib for plotting
 
 from dataset import extract_features
 from gmm import GMMAnomalyDetector
@@ -39,6 +40,23 @@ def get_args() -> argparse.Namespace:
     args = parser.parse_args()
     return args
 
+def plot_likelihood_histogram(scores, y_true, save_path):
+    """Plot histogram of likelihood scores for normal vs anomalies and save it."""
+    normal_scores = scores[y_true == 0]
+    anomaly_scores = scores[y_true == 1]
+
+    plt.figure(figsize=(10, 6))
+    plt.hist(normal_scores, bins=30, alpha=0.5, label='Normal', color='blue')
+    plt.hist(anomaly_scores, bins=30, alpha=0.5, label='Anomalies', color='red')
+    plt.axvline(np.percentile(scores, 5), color='black', linestyle='dashed', linewidth=1, label='Threshold')
+    plt.title('Likelihood Histogram for Normal vs Anomalies')
+    plt.xlabel('Likelihood Score')
+    plt.ylabel('Frequency')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+
 def eval(args: argparse.Namespace) -> None:
     print("Evaluation started...")
     os.makedirs(args.result_dir, exist_ok=True)
@@ -64,12 +82,17 @@ def eval(args: argparse.Namespace) -> None:
     # Score files
     score_list = [["File", "Score"]]
     y_pred = []
-    
+    likelihood_scores = []  # Store likelihood scores for histogram
+
     for wav_path in tqdm(file_list, desc="Processing files"):
         frames = extract_features(wav_path, args.sr, args.n_fft, args.hop_length)
         score = gmm.score_file(frames.to(device))
         y_pred.append(score)
         
+        # Get likelihood scores for plotting
+        log_probs = gmm.gmm.score_samples(frames.to(device))
+        likelihood_scores.extend(log_probs.cpu().numpy())  # Store likelihood scores
+
         file_name = os.path.splitext(os.path.basename(wav_path))[0]
         score_list.append([file_name, score])
 
@@ -80,6 +103,12 @@ def eval(args: argparse.Namespace) -> None:
     auc = metrics.roc_auc_score(y_true, y_pred)
     print(f"\nOverall AUC: {auc:.4f}")
     
+    # Save likelihood histogram plot
+    likelihood_scores = np.array(likelihood_scores)
+    hist_save_path = os.path.join(args.result_dir, "likelihood_histogram.png")
+    plot_likelihood_histogram(likelihood_scores, np.array(y_true), hist_save_path)
+    print(f"Likelihood histogram saved to {hist_save_path}")
+
     # Per-drone metrics
     drone_types = ["A", "B", "C"]
     for i, drone in enumerate(drone_types):
@@ -96,3 +125,4 @@ if __name__ == "__main__":
     args = get_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
     eval(args)
+
