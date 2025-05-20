@@ -80,6 +80,5 @@ def train(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     args = get_args()
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
     set_seed()
     train(args)
