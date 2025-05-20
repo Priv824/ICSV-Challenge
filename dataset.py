@@ -20,6 +20,10 @@ def normalize_features(features: torch.Tensor, feature_means: Optional[Union[tor
     if isinstance(feature_means, np.ndarray):
         feature_means = torch.from_numpy(feature_means).float()
     
+    # Ensure features are 2D
+    if features.dim() == 1:
+        features = features.unsqueeze(0)
+    
     # Move feature_means to same device as features
     if feature_means is not None:
         feature_means = feature_means.to(features.device)
@@ -28,9 +32,12 @@ def normalize_features(features: torch.Tensor, feature_means: Optional[Union[tor
         feature_means = torch.mean(features, dim=0, keepdim=True)
     
     # Avoid division by zero
-    feature_means = torch.where(feature_means == 0, 
-                              torch.tensor(1.0, device=features.device), 
-                              feature_means)
+    feature_means = torch.where(
+        feature_means == 0, 
+        torch.tensor(1.0, device=features.device), 
+        feature_means
+    )
+    
     normalized_features = features / feature_means
     
     return normalized_features, feature_means
@@ -57,23 +64,27 @@ def extract_features(
     window = np.hanning(n_fft)
     frames = frames * window[None, :]
     
+    # Initialize arrays for each feature type
+    flatness = []
+    rolloff = []
+    bandwidth = []
+    centroid = []
+    
     # Compute features for each frame
-    features_list = []
     for frame in frames:
-        frame_features = np.array([
-            spectral_flatness(y=frame, n_fft=n_fft, hop_length=n_fft)[0],
-            spectral_rolloff(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0],
-            spectral_bandwidth(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0],
-            spectral_centroid(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0]
-        ])
-        features_list.append(frame_features)
+        flatness.append(spectral_flatness(y=frame, n_fft=n_fft, hop_length=n_fft)[0])
+        rolloff.append(spectral_rolloff(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0])
+        bandwidth.append(spectral_bandwidth(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0])
+        centroid.append(spectral_centroid(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0])
     
-    # Stack all frame features and compute statistics
-    features = np.stack(features_list)  # [n_frames, 4]
-    features_mean = np.mean(features, axis=0)  # [4]
-    features_std = np.std(features, axis=0)    # [4]
+    # Convert lists to arrays
+    features = np.array([flatness, rolloff, bandwidth, centroid])  # [4, n_frames]
     
-    # Concatenate statistics to get final feature vector
+    # Compute statistics
+    features_mean = np.mean(features, axis=1)  # [4]
+    features_std = np.std(features, axis=1)    # [4]
+    
+    # Concatenate mean and std to get final features
     features = np.concatenate([features_mean, features_std])  # [8]
     
     # Convert to tensor
