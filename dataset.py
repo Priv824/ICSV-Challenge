@@ -131,9 +131,12 @@ class BaselineDataLoader(Dataset):
             self.feature_means
         )
         
+        
         anomaly_label = utils.get_anomaly_label(wav_path)
         drone_label = utils.get_drone_label(wav_path)
         direction_label = utils.get_direction_label(wav_path)
+
+        print(f"Extracted features shape: {features.shape}")  # Debugging line
 
         return features, anomaly_label, drone_label, direction_label
 
