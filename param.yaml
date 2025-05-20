@@ -18,7 +18,7 @@ tol: 1e-4
 
 reg_covar: 1e-6
 
-gpu: 0
+gpu: 2
 n_workers: 1
 
 sr: 16000
