@@ -10,7 +10,7 @@ model_path: baseline.pth
 epochs: 50  # Increased epochs
 batch_size: 32  # Reduced batch size
 lr: 5e-4  # Reduced learning rate
-n_components: 5
+n_components: 64
 
 max_iter: 100
 

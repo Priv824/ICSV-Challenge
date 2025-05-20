@@ -20,10 +20,10 @@ class GaussianMixture(torch.nn.Module):
         """Improved initialization using k-means"""
         kmeans = KMeans(n_clusters=self.n_components).fit(X.cpu().numpy())
         self.means.data = torch.tensor(kmeans.cluster_centers_, device=X.device)
-        
         for k in range(self.n_components):
-            cluster_points = X[kmeans.labels_ == k]
-            self.covariances.data[k] = torch.cov(cluster_points.T) + self.reg_covar * torch.eye(self.n_features)
+            cluster_points = X[kmeans.labels_ == k].to(X.device)  # Move to the same device
+            cov = torch.cov(cluster_points.T) + self.reg_covar * torch.eye(self.n_features, device=X.device)  # Ensure identity matrix is on the same device
+            self.covariances.data[k] = cov
 
     def _e_step(self, X):
         """Expectation step with full covariance support"""
