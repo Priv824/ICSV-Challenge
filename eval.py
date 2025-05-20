@@ -91,7 +91,7 @@ def eval(args: argparse.Namespace) -> None:
         
         # Get likelihood scores for plotting
         log_probs = gmm.gmm.score_samples(frames.to(device))
-        likelihood_scores.extend(log_probs.cpu().numpy())  # Store likelihood scores
+        likelihood_scores.extend(log_probs.detach().cpu().numpy())  # Store likelihood scores
 
         file_name = os.path.splitext(os.path.basename(wav_path))[0]
         score_list.append([file_name, score])
