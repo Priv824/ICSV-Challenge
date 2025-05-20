@@ -64,31 +64,27 @@ def extract_features(
     window = np.hanning(n_fft)
     frames = frames * window[None, :]
     
-    # Initialize arrays for each feature type
-    flatness = []
-    rolloff = []
-    bandwidth = []
-    centroid = []
-    
     # Compute features for each frame
+    features_list = []
     for frame in frames:
-        flatness.append(spectral_flatness(y=frame, n_fft=n_fft, hop_length=n_fft)[0])
-        rolloff.append(spectral_rolloff(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0])
-        bandwidth.append(spectral_bandwidth(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0])
-        centroid.append(spectral_centroid(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0])
+        frame_features = np.array([
+            spectral_flatness(y=frame, n_fft=n_fft, hop_length=n_fft)[0],
+            spectral_rolloff(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0],
+            spectral_bandwidth(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0],
+            spectral_centroid(y=frame, sr=sr, n_fft=n_fft, hop_length=n_fft)[0]
+        ])
+        features_list.append(frame_features)
     
-    # Convert lists to arrays
-    features = np.array([flatness, rolloff, bandwidth, centroid])  # [4, n_frames]
+    # Stack all frame features and compute statistics
+    features = np.stack(features_list)  # [n_frames, 4]
+    features_mean = np.mean(features, axis=0)  # [4]
+    features_std = np.std(features, axis=0)    # [4]
     
-    # Compute statistics
-    features_mean = np.mean(features, axis=1)  # [4]
-    features_std = np.std(features, axis=1)    # [4]
-    
-    # Concatenate mean and std to get final features
+    # Concatenate statistics to get final feature vector
     features = np.concatenate([features_mean, features_std])  # [8]
     
-    # Convert to tensor
-    features = torch.from_numpy(features).float()
+    # Convert to tensor and ensure shape [8]
+    features = torch.from_numpy(features).float().view(-1)  # Force flattening
     
     # Move to same device as feature_means if provided
     if feature_means is not None and isinstance(feature_means, torch.Tensor):
@@ -98,7 +94,6 @@ def extract_features(
     normalized_features, used_means = normalize_features(features.unsqueeze(0), feature_means)
     
     return normalized_features.squeeze(0), used_means.squeeze(0)
-
 
 class BaselineDataLoader(Dataset):
     def __init__(
@@ -121,25 +116,22 @@ class BaselineDataLoader(Dataset):
     def __len__(self) -> int:
         return len(self.file_list)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int, int, int]:
-        wav_path = self.file_list[idx]
-        features, _ = extract_features(
-            wav_path,
-            self.sr,
-            self.n_fft,
-            self.hop_length,
-            self.feature_means
-        )
-        
-        
-        anomaly_label = utils.get_anomaly_label(wav_path)
-        drone_label = utils.get_drone_label(wav_path)
-        direction_label = utils.get_direction_label(wav_path)
+def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int, int, int]:
+    wav_path = self.file_list[idx]
+    features, _ = extract_features(
+        wav_path,
+        self.sr,
+        self.n_fft,
+        self.hop_length,
+        self.feature_means
+    )
+    
+    anomaly_label = utils.get_anomaly_label(wav_path)
+    drone_label = utils.get_drone_label(wav_path)
+    direction_label = utils.get_direction_label(wav_path)
 
-        with open('debug.txt', 'a') as f:
-            f.write(f"Extracted features shape: {features.shape}\n")
-
-        return features, anomaly_label, drone_label, direction_label
+    # Ensure features are 1D (shape [8])
+    return features, anomaly_label, drone_label, direction_label
 
 def get_train_loader(
     args: argparse.Namespace,
@@ -159,6 +151,7 @@ def get_train_loader(
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.n_workers,
+        collate_fn=collate_fn  # Add this line
     )
 
 def get_eval_loader(
@@ -194,3 +187,11 @@ def get_test_loader(
     return DataLoader(
         test_dataloader, batch_size=1, shuffle=False, num_workers=0
     ), file_list
+
+def collate_fn(batch):
+    """Custom collate function to ensure correct feature shapes."""
+    features = torch.stack([item[0] for item in batch])  # Shape: [batch_size, 8]
+    labels = torch.tensor([item[1] for item in batch])
+    drone_labels = torch.tensor([item[2] for item in batch])
+    direction_labels = torch.tensor([item[3] for item in batch])
+    return features, labels, drone_labels, direction_labels

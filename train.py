@@ -76,11 +76,13 @@ def train(args: argparse.Namespace) -> None:
     normalized_features = []
     for data in tqdm(dataloader, desc="Collecting normalized features"):
         features = data[0].to(device)
-        if features.shape[-1] != 8:
-            raise ValueError(f"Expected 8 features, got {features.shape}")
+        print(f"Features shape: {features.shape}")  # Debug: Should be [batch_size, 8]
+        if features.dim() != 2 or features.shape[1] != 8:
+            raise ValueError(f"Expected [batch_size, 8], got {features.shape}")
         normalized_features.append(features)
-    
+
     normalized_features = torch.cat(normalized_features)
+    print(f"Final features shape: {normalized_features.shape}")  # Should be [N, 8]
     
     # Train GMM with correct number of features
     gmm = GMMAnomalyDetector(
