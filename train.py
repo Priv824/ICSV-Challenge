@@ -70,7 +70,7 @@ def train(args: argparse.Namespace) -> None:
     
     # Train GMM
     gmm = GMMAnomalyDetector(n_components=args.n_components, n_features=4, device=device)
-    gmm.fit(all_frames, max_iter=args.max_iter, lr=args.lr)
+    gmm.fit(all_frames, max_iter=args.max_iter, tol=args.tol)
     
     # Save model
     model_path = os.path.join(args.model_dir, args.model_path)
