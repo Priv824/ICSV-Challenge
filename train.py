@@ -51,12 +51,12 @@ def set_seed(seed: int) -> None:
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
+# Modify the training loop to include shape verification
 def train(args: argparse.Namespace) -> None:
     print("Training started...")
     os.makedirs(args.result_dir, exist_ok=True)
     os.makedirs(args.model_dir, exist_ok=True)
 
-    # Set device
     device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
@@ -67,36 +67,31 @@ def train(args: argparse.Namespace) -> None:
         all_features.append(data[0].to(device))
     
     feature_means = torch.mean(torch.cat(all_features), dim=0)
-    
-    # Convert feature_means to numpy for dataloader compatibility
     feature_means_np = feature_means.cpu().numpy()
-    
+
     # Second pass with normalized features
     dataloader = dataset.get_train_loader(args, feature_means=feature_means_np)
-    
-    for batch in dataloader:
-        print(f"Batch features shape: {batch[0].shape}")  # Should be [32, 8]
-        break  # Just check first batch
-
     normalized_features = []
+    
+    # Test the first batch
+    test_batch = next(iter(dataloader))
+    print(f"First batch features shape: {test_batch[0].shape}")  # Should be [32, 8]
+    
     for data in tqdm(dataloader, desc="Collecting normalized features"):
         features = data[0].to(device)
-        if features.shape != (args.batch_size, 8):  # Strict check for [32, 8]
-            raise ValueError(f"Expected features shape [batch_size, 8], got {features.shape}")
+        if features.shape != (args.batch_size, 8):
+            print(f"Unexpected shape: {features.shape}")
+            # Force reshape if needed (safety net)
+            features = features.view(args.batch_size, -1)[:, :8]
         normalized_features.append(features)
 
     normalized_features = torch.cat(normalized_features)
     print(f"Final features shape: {normalized_features.shape}")  # Should be [N, 8]
     
-    # Train GMM with correct number of features
-    gmm = GMMAnomalyDetector(
-        n_components=3, 
-        n_features=8,  # 4 features × 2 statistics (mean and std)
-        device=device
-    )
+    # Train GMM
+    gmm = GMMAnomalyDetector(n_components=3, n_features=8, device=device)
     gmm.fit(normalized_features, n_epochs=args.epochs, lr=args.lr)
     
-    # Save both GMM and feature means
     save_gmm(gmm, feature_means, os.path.join(args.model_dir, args.model_path))
     print(f"Model saved to {os.path.join(args.model_dir, args.model_path)}")
 

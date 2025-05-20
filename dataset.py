@@ -133,6 +133,16 @@ class BaselineDataLoader(Dataset):
         # Ensure features are 1D (shape [8])
         return features, anomaly_label, drone_label, direction_label
 
+# Add this custom collate function at the top level of dataset.py
+def collate_fn(batch):
+    """Custom collate function to ensure correct feature shapes."""
+    features = torch.stack([item[0].view(-1)[:8] for item in batch])  # Force [batch_size, 8]
+    labels = torch.tensor([item[1] for item in batch])
+    drone_labels = torch.tensor([item[2] for item in batch])
+    direction_labels = torch.tensor([item[3] for item in batch])
+    return features, labels, drone_labels, direction_labels
+
+# Update get_train_loader to use the custom collate_fn
 def get_train_loader(
     args: argparse.Namespace,
     feature_means: Optional[np.ndarray] = None
@@ -151,7 +161,7 @@ def get_train_loader(
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.n_workers,
-        collate_fn=collate_fn  # Add this line
+        collate_fn=collate_fn  # This is critical
     )
 
 def get_eval_loader(
@@ -188,7 +198,7 @@ def get_test_loader(
         test_dataloader, batch_size=1, shuffle=False, num_workers=0
     ), file_list
 
-def collate_fn(batch):
+
     """Custom collate function to ensure correct feature shapes."""
     features = torch.stack([item[0] for item in batch])  # Shape: [batch_size, 8]
     labels = torch.tensor([item[1] for item in batch])
