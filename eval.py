@@ -30,6 +30,8 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--sr", default=param["sr"], type=int)
     parser.add_argument("--n_fft", default=param["n_fft"], type=int)
     parser.add_argument("--hop_length", default=param["hop_length"], type=int)
+    parser.add_argument("--n-components", type=int, default=5)
+    parser.add_argument("--reg-covar", type=float, default=1e-6)
     
     # Hardware parameters
     parser.add_argument("--gpu", default=param["gpu"], type=int)
@@ -45,7 +47,7 @@ def eval(args: argparse.Namespace) -> None:
     
     # Load GMM
     model_path = os.path.join(args.model_dir, args.model_path)
-    gmm = GMMAnomalyDetector(n_components=3, n_features=4, device=device)
+    gmm = GMMAnomalyDetector(n_components=args.n_components, n_features=4, device=device)
     gmm.gmm.load_state_dict(torch.load(model_path))
     
     # Get file list and labels

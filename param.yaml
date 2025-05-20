@@ -10,6 +10,13 @@ model_path: baseline.pth
 epochs: 50  # Increased epochs
 batch_size: 32  # Reduced batch size
 lr: 5e-4  # Reduced learning rate
+n_components: 5
+
+max_iter: 100
+
+tol: 1e-4
+
+reg_covar: 1e-6
 
 gpu: 0
 n_workers: 1

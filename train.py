@@ -27,6 +27,10 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--epochs", default=param["epochs"], type=int)
     parser.add_argument("--batch-size", default=param["batch_size"], type=int)
     parser.add_argument("--lr", default=param["lr"], type=float)
+    parser.add_argument("--n-components", default=5, type=int)
+    parser.add_argument("--max-iter", default=100, type=int)
+    parser.add_argument("--tol", default=1e-4, type=float)
+    parser.add_argument("--reg-covar", default=1e-6, type=float)
     
     # Hardware parameters
     parser.add_argument("--gpu", default=param["gpu"], type=int)
@@ -65,8 +69,8 @@ def train(args: argparse.Namespace) -> None:
     print(f"Feature dimension: {all_frames.shape[1]}")
     
     # Train GMM
-    gmm = GMMAnomalyDetector(n_components=3, n_features=4, device=device)
-    gmm.fit(all_frames, n_epochs=args.epochs, lr=args.lr)
+    gmm = GMMAnomalyDetector(n_components=args.n_components, n_features=4, device=device)
+    gmm.fit(all_frames, max_iter=args.max_iter, lr=args.lr)
     
     # Save model
     model_path = os.path.join(args.model_dir, args.model_path)

@@ -17,6 +17,8 @@ def get_args():
     parser.add_argument("--n_fft", type=int, default=2048, help="FFT window size")
     parser.add_argument("--hop_length", type=int, default=512, help="Hop length between frames")
     parser.add_argument("--gpu", type=int, default=0, help="GPU device index")
+    parser.add_argument("--n-components", type=int, default=5)
+    parser.add_argument("--reg-covar", type=float, default=1e-6)
     return parser.parse_args()
 
 def test(args: argparse.Namespace) -> None:
@@ -27,7 +29,7 @@ def test(args: argparse.Namespace) -> None:
     
     # Load GMM
     model_path = os.path.join(args.model_dir, args.model_path)
-    gmm = GMMAnomalyDetector(n_components=3, n_features=4, device=device)
+    gmm = GMMAnomalyDetector(n_components=args.n_components, n_features=4, device=device)
     gmm.gmm.load_state_dict(torch.load(model_path))
     
     # Get test files
