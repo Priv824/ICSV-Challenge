@@ -136,7 +136,8 @@ class BaselineDataLoader(Dataset):
         drone_label = utils.get_drone_label(wav_path)
         direction_label = utils.get_direction_label(wav_path)
 
-        print(f"Extracted features shape: {features.shape}")  # Debugging line
+        with open('debug.txt', 'a') as f:
+            f.write(f"Extracted features shape: {features.shape}\n")
 
         return features, anomaly_label, drone_label, direction_label
 
