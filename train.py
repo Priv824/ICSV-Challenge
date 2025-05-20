@@ -68,7 +68,7 @@ def train(args: argparse.Namespace) -> None:
     print(f"Feature dimension: {all_frames.shape[1]}")
     
     # Train GMM
-    gmm = GMMAnomalyDetector(n_components=args.n_components, n_features=4, device=device)
+    gmm = GMMAnomalyDetector(n_components=args.n_components, n_features=4, device='cpu')
     gmm.fit(all_frames, max_iter=args.max_iter, tol=args.tol)
     
     # Save model
