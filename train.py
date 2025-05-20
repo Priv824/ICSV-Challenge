@@ -70,8 +70,11 @@ def train(args: argparse.Namespace) -> None:
     print(f"Feature dimension: {all_frames.shape[1]}")
     
     # Train GMM
+    print("Training GMM...")
     gmm = GMMAnomalyDetector(n_components=args.n_components, n_features=4, device='cpu')
+    print(f"Number of components: {args.n_components}")
     gmm.fit(all_frames, max_iter=args.max_iter, tol=args.tol)
+    print("GMM training completed.")
     
     # Save model
     model_path = os.path.join(args.model_dir, args.model_path)

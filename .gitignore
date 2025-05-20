@@ -1,5 +1,4 @@
 .vscode/
-model/
 __pycache__/
 
 test_for_organizer.py

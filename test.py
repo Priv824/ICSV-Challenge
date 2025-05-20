@@ -17,7 +17,7 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--model_dir", type=str, default=param["model_dir"], help="Directory containing the model")
-    parser.add_argument("--model_path", type=str, required=True, help="Path to the model file")
+    parser.add_argument("--model_path", type=str, default=param["model_path"], required=True, help="Path to the model file")
     parser.add_argument("--test_dir", type=str, default=param["test_dir"], help="Directory containing test files")
     parser.add_argument("--result_dir", type=str, default=param["result_dir"], help="Directory to save results")
     parser.add_argument("--sr", type=int, default=param["sr"], help="Sample rate")
