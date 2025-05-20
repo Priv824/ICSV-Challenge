@@ -3,33 +3,41 @@ import os
 
 import torch
 import numpy as np
+from tqdm import tqdm
 
 import dataset
 from gmm import load_gmm
 import utils
+from utils import extract_features
 
 
-def test(args: argparse.Namespace) -> None:
-    print("Test started...")
-
-    # Load GMM and feature means
-    model_path = os.path.join(args.model_dir, args.model_path)
-    gmm, feature_means = load_gmm(model_path)
+def test(args):
+    device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu')
     
-    dataloader, file_list = dataset.get_test_loader(args, feature_means=feature_means)
-
-    score_list = [["File", "Score"]]
-
-    for idx, data in enumerate(dataloader):
-        features = data[0].numpy()[np.newaxis, :]  # [1, 4]
-        score = gmm.score_samples(features)[0]
+    # Load the trained GMM model
+    gmm = load_gmm(args.model_path, device)
+    
+    # Create result directory
+    os.makedirs(args.result_dir, exist_ok=True)
+    
+    # Process test files
+    test_files = [os.path.join(args.test_dir, f) for f in os.listdir(args.test_dir)]
+    results = []
+    
+    for wav_path in tqdm(test_files):
+        # Extract features
+        frames = extract_features(wav_path, args.sr, args.n_fft, args.hop_length)
         
-        file_name = os.path.splitext(file_list[idx].split("/")[-1])[0]
-        score_list.append([file_name, score])
-
-    utils.save_csv(score_list, os.path.join(args.result_dir, "test_score.csv"))
-    print(f"Test scores saved to {os.path.join(args.result_dir, 'test_score.csv')}")
-
+        # Calculate anomaly scores
+        scores = gmm.score_samples(frames)
+        anomaly_score = -scores.mean().item()  # Using negative log-likelihood as anomaly score
+        
+        # Store results
+        filename = os.path.basename(wav_path)
+        results.append({'file': filename, 'anomaly_score': anomaly_score})
+        
+    # Save results
+    utils.save_results(results, os.path.join(args.result_dir, 'results.csv'))
 
 def get_args():
     parser = argparse.ArgumentParser()
