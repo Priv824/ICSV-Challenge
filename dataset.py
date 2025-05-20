@@ -11,36 +11,34 @@ from librosa.feature import spectral_flatness, spectral_rolloff, spectral_bandwi
 import utils
 
 def normalize_features(features: torch.Tensor, feature_means: Optional[Union[torch.Tensor, np.ndarray]] = None) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Normalize features by dividing by their mean.
-    If feature_means is None, calculates means from the input.
-    Returns normalized features and the means used.
-    """
-    # Convert feature_means to tensor if it's a numpy array
+    """Normalize features by feature means with strict shape enforcement"""
+    if feature_means is None:
+        return features, torch.zeros_like(features)
+    
+    # Convert and align devices
     if isinstance(feature_means, np.ndarray):
         feature_means = torch.from_numpy(feature_means).float()
+    feature_means = feature_means.to(features.device)
     
-    # Ensure features are 2D
+    # Ensure features are [..., 8]
     if features.dim() == 1:
         features = features.unsqueeze(0)
+    features = features[..., :8]  # Force 8 features
     
-    # Move feature_means to same device as features
-    if feature_means is not None:
-        feature_means = feature_means.to(features.device)
+    # Ensure means are [8]
+    feature_means = feature_means.view(-1)[:8]  # Flatten and take first 8
     
-    if feature_means is None:
-        feature_means = torch.mean(features, dim=0, keepdim=True)
-    
-    # Avoid division by zero
-    feature_means = torch.where(
-        feature_means == 0, 
-        torch.tensor(1.0, device=features.device), 
-        feature_means
-    )
-    
-    normalized_features = features / feature_means
-    
-    return normalized_features, feature_means
+    # Normalize
+    normalized = features / feature_means
+    return normalized.squeeze(), feature_means.squeeze()
+
+def collate_fn(batch):
+    """Strict collate function that enforces [batch_size, 8] shape"""
+    features = torch.stack([item[0].view(-1)[:8] for item in batch])  # [batch_size, 8]
+    labels = torch.tensor([item[1] for item in batch])
+    drone_labels = torch.tensor([item[2] for item in batch])
+    direction_labels = torch.tensor([item[3] for item in batch])
+    return features, labels, drone_labels, direction_labels
 
 def extract_features(
     wav_path: str,
@@ -80,20 +78,26 @@ def extract_features(
     features_mean = np.mean(features, axis=0)  # [4]
     features_std = np.std(features, axis=0)    # [4]
     
-    # Concatenate statistics to get final feature vector (8 features total)
-    features = np.concatenate([features_mean, features_std])  # [8]
+    # Ensure we only take the first 8 features if more exist
+    features = np.concatenate([features_mean, features_std])[:8]  # Force 8 features
     
-    # Convert to tensor and ensure shape [8]
-    features = torch.from_numpy(features).float()
+    # Convert to tensor and ensure proper shape
+    features = torch.from_numpy(features).float().view(-1)  # Shape: [8]
     
-    # Move to same device as feature_means if provided
-    if feature_means is not None and isinstance(feature_means, torch.Tensor):
-        features = features.to(feature_means.device)
+    if feature_means is not None:
+        if isinstance(feature_means, np.ndarray):
+            feature_means = torch.from_numpy(feature_means).float()
+        feature_means = feature_means.to(features.device)
     
-    # Normalize features
-    normalized_features, used_means = normalize_features(features.unsqueeze(0), feature_means)
+    # Normalize only if means are provided
+    if feature_means is not None:
+        # Ensure shapes match
+        if len(feature_means) != len(features):
+            feature_means = feature_means[:len(features)]  # Truncate if needed
+        normalized_features = features / feature_means
+        return normalized_features, feature_means
     
-    return normalized_features.squeeze(0), used_means.squeeze(0)
+    return features, torch.zeros_like(features)
 
 class BaselineDataLoader(Dataset):
     def __init__(
@@ -126,23 +130,15 @@ class BaselineDataLoader(Dataset):
             self.feature_means
         )
         
+        # Ensure features are exactly 8-dimensional
+        features = features[:8] if len(features) > 8 else features
+        
         anomaly_label = utils.get_anomaly_label(wav_path)
         drone_label = utils.get_drone_label(wav_path)
         direction_label = utils.get_direction_label(wav_path)
 
-        # Ensure features are 1D (shape [8])
         return features, anomaly_label, drone_label, direction_label
 
-# Add this custom collate function at the top level of dataset.py
-def collate_fn(batch):
-    """Custom collate function to ensure correct feature shapes."""
-    features = torch.stack([item[0].view(-1)[:8] for item in batch])  # Force [batch_size, 8]
-    labels = torch.tensor([item[1] for item in batch])
-    drone_labels = torch.tensor([item[2] for item in batch])
-    direction_labels = torch.tensor([item[3] for item in batch])
-    return features, labels, drone_labels, direction_labels
-
-# Update get_train_loader to use the custom collate_fn
 def get_train_loader(
     args: argparse.Namespace,
     feature_means: Optional[np.ndarray] = None

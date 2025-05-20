@@ -60,28 +60,26 @@ def train(args: argparse.Namespace) -> None:
     device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
-    # First pass to calculate feature means
+    # First pass - calculate means
     dataloader = dataset.get_train_loader(args)
     all_features = []
     for data in tqdm(dataloader, desc="Calculating feature means"):
-        all_features.append(data[0].to(device))
+        features = data[0].to(device)
+        if features.shape[-1] != 8:
+            features = features[..., :8]  # Enforce 8 features
+        all_features.append(features)
     
     feature_means = torch.mean(torch.cat(all_features), dim=0)
-    feature_means_np = feature_means.cpu().numpy()
-
-    # Second pass with normalized features
-    dataloader = dataset.get_train_loader(args, feature_means=feature_means_np)
+    print(f"Feature means shape: {feature_means.shape}")  # Should be [8]
+    
+    # Second pass - normalized training
+    dataloader = dataset.get_train_loader(args, feature_means=feature_means.cpu().numpy())
     normalized_features = []
     
-    # Test the first batch
-    test_batch = next(iter(dataloader))
-    print(f"First batch features shape: {test_batch[0].shape}")  # Should be [32, 8]
-    
-    for data in tqdm(dataloader, desc="Collecting normalized features"):
+    for data in tqdm(dataloader, desc="Training"):
         features = data[0].to(device)
         if features.shape != (args.batch_size, 8):
-            print(f"Unexpected shape: {features.shape}")
-            # Force reshape if needed (safety net)
+            print(f"Correcting shape from {features.shape} to [{args.batch_size}, 8]")
             features = features.view(args.batch_size, -1)[:, :8]
         normalized_features.append(features)
 
