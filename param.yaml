@@ -7,7 +7,7 @@ model_dir: ./model/baseline
 
 model_path: baseline.pth
 
-epochs: 2  # Increased epochs
+epochs: 50  # Increased epochs
 batch_size: 32  # Reduced batch size
 lr: 5e-4  # Reduced learning rate
 
