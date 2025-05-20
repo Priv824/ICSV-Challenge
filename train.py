@@ -73,12 +73,16 @@ def train(args: argparse.Namespace) -> None:
     
     # Second pass with normalized features
     dataloader = dataset.get_train_loader(args, feature_means=feature_means_np)
+    
+    for batch in dataloader:
+        print(f"Batch features shape: {batch[0].shape}")  # Should be [32, 8]
+        break  # Just check first batch
+
     normalized_features = []
     for data in tqdm(dataloader, desc="Collecting normalized features"):
         features = data[0].to(device)
-        print(f"Features shape: {features.shape}")  # Debug: Should be [batch_size, 8]
-        if features.dim() != 2 or features.shape[1] != 8:
-            raise ValueError(f"Expected [batch_size, 8], got {features.shape}")
+        if features.shape != (args.batch_size, 8):  # Strict check for [32, 8]
+            raise ValueError(f"Expected features shape [batch_size, 8], got {features.shape}")
         normalized_features.append(features)
 
     normalized_features = torch.cat(normalized_features)

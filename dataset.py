@@ -80,11 +80,11 @@ def extract_features(
     features_mean = np.mean(features, axis=0)  # [4]
     features_std = np.std(features, axis=0)    # [4]
     
-    # Concatenate statistics to get final feature vector
+    # Concatenate statistics to get final feature vector (8 features total)
     features = np.concatenate([features_mean, features_std])  # [8]
     
     # Convert to tensor and ensure shape [8]
-    features = torch.from_numpy(features).float().view(-1)  # Force flattening
+    features = torch.from_numpy(features).float()
     
     # Move to same device as feature_means if provided
     if feature_means is not None and isinstance(feature_means, torch.Tensor):
