@@ -1,159 +1,70 @@
-import argparse
 import os
-from typing import List, Tuple
-
 import torch
 import torchaudio
-from torch.utils.data import DataLoader, Dataset
-
+import numpy as np
+import librosa
+from typing import List, Tuple, Optional
+from torch.utils.data import Dataset, DataLoader
 import utils
 
-
-def wav_to_log_mel(
+def extract_features(
     wav_path: str,
     sr: int,
     n_fft: int,
-    win_length: int,
-    hop_length: int,
-    n_mels: int,
-    power: float,
-    fmin: float = 0.0,
-    fmax: float = 100.0,
+    hop_length: int
 ) -> torch.Tensor:
-    mel_transform = torchaudio.transforms.MelSpectrogram(
-        sample_rate=sr,
-        n_fft=n_fft,
-        win_length=win_length,
-        hop_length=hop_length,
-        n_mels=n_mels,
-        power=power,
-        f_min=fmin,
-        f_max=fmax,
-    )
+    """Extract raw frame-level features (4D)"""
+    # Load and convert to mono
+    y, _ = torchaudio.load(wav_path)
+    y = y.numpy()[0] if y.ndim == 2 else y.numpy()
+    
+    # Compute STFT
+    S = np.abs(librosa.stft(y, n_fft=n_fft, hop_length=hop_length))
+    
+    # Extract all 4 features per frame
+    features = np.vstack([
+        librosa.feature.spectral_flatness(S=S)/np.mean(S),
+        librosa.feature.spectral_rolloff(S=S, sr=sr)/np.mean(S),
+        librosa.feature.spectral_bandwidth(S=S, sr=sr)/np.mean(S),
+        librosa.feature.spectral_centroid(S=S, sr=sr)/np.mean(S)
+    ])  # Shape: [4, n_frames]
+    
+    return torch.from_numpy(features.T).float()  # [n_frames, 4]
 
-    wav_data, _ = torchaudio.load(wav_path)
-    amp_to_db = torchaudio.transforms.AmplitudeToDB()
-
-    mel_spec = mel_transform(wav_data)
-    log_mel_spec = amp_to_db(mel_spec)
-    return log_mel_spec
-
-
-def get_train_loader(
-    args: argparse.Namespace,
-) -> DataLoader[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
-    train_dir = args.train_dir
-    sr = args.sr
-    n_fft = args.n_fft
-    win_length = args.win_length
-    hop_length = args.hop_length
-    n_mels = args.n_mels
-    power = args.power
-
-    file_list = os.listdir(train_dir)
-    file_list.sort()
-    file_list = [os.path.join(train_dir, file) for file in file_list]
-    train_dataloader = BaselineDataLoader(
-        file_list, sr, n_fft, win_length, hop_length, n_mels, power
-    )
-
-    train_loader = DataLoader(
-        train_dataloader,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=args.n_workers,
-    )
-    return train_loader
-
-
-def get_eval_loader(
-    args: argparse.Namespace,
-) -> Tuple[
-    DataLoader[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]], List[str]
-]:
-    eval_dir = args.eval_dir
-    sr = args.sr
-    n_fft = args.n_fft
-    win_length = args.win_length
-    hop_length = args.hop_length
-    n_mels = args.n_mels
-    power = args.power
-
-    file_list = os.listdir(eval_dir)
-    file_list.sort()
-    file_list = [os.path.join(eval_dir, file) for file in file_list]
-    eval_dataloader = BaselineDataLoader(
-        file_list, sr, n_fft, win_length, hop_length, n_mels, power
-    )
-
-    eval_loader = DataLoader(
-        eval_dataloader, batch_size=1, shuffle=False, num_workers=0
-    )
-    return eval_loader, file_list
-
-
-def get_test_loader(
-    args: argparse.Namespace,
-) -> Tuple[
-    DataLoader[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]], List[str]
-]:
-    test_dir = args.test_dir
-    sr = args.sr
-    n_fft = args.n_fft
-    win_length = args.win_length
-    hop_length = args.hop_length
-    n_mels = args.n_mels
-    power = args.power
-
-    file_list = os.listdir(test_dir)
-    file_list.sort()
-    file_list = [os.path.join(test_dir, file) for file in file_list]
-    test_dataloader = BaselineDataLoader(
-        file_list, sr, n_fft, win_length, hop_length, n_mels, power
-    )
-
-    test_loader = DataLoader(
-        test_dataloader, batch_size=1, shuffle=False, num_workers=0
-    )
-    return test_loader, file_list
-
-
-class BaselineDataLoader(Dataset):
+class FrameDataset(Dataset):
     def __init__(
         self,
-        file_list: list[str],
+        file_list: List[str],
         sr: int,
         n_fft: int,
-        win_length: int,
-        hop_length: int,
-        n_mels: int,
-        power: float,
-    ) -> None:
+        hop_length: int
+    ):
         self.file_list = file_list
         self.sr = sr
         self.n_fft = n_fft
-        self.win_length = win_length
         self.hop_length = hop_length
-        self.n_mels = n_mels
-        self.power = power
 
-    def __len__(self) -> int:
+    def __len__(self):
         return len(self.file_list)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int, int, int]:
+    def __getitem__(self, idx):
         wav_path = self.file_list[idx]
-        log_mel_spec = wav_to_log_mel(
-            wav_path,
-            self.sr,
-            self.n_fft,
-            self.win_length,
-            self.hop_length,
-            self.n_mels,
-            self.power,
-        )
+        frames = extract_features(wav_path, self.sr, self.n_fft, self.hop_length)
+        label = utils.get_anomaly_label(wav_path)
+        return frames, label
 
-        anomaly_label = utils.get_anomaly_label(wav_path)
-        drone_label = utils.get_drone_label(wav_path)
-        direction_label = utils.get_direction_label(wav_path)
+def collate_fn(batch):
+    """Batch frames from multiple audio files"""
+    frames = [item[0] for item in batch]  # List of [n_frames, 4] tensors
+    labels = torch.tensor([item[1] for item in batch])
+    return torch.cat(frames), labels  # [total_frames, 4], [batch_size]
 
-        return log_mel_spec, anomaly_label, drone_label, direction_label
+def get_train_loader(args):
+    file_list = [os.path.join(args.train_dir, f) for f in os.listdir(args.train_dir)]
+    dataset = FrameDataset(file_list, args.sr, args.n_fft, args.hop_length)
+    return DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        collate_fn=collate_fn
+    )

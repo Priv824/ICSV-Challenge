@@ -7,11 +7,18 @@ model_dir: ./model/baseline
 
 model_path: baseline.pth
 
-epochs: 100
-batch_size: 64
-lr: 1e-3
+epochs: 50  # Increased epochs
+batch_size: 32  # Reduced batch size
+lr: 5e-4  # Reduced learning rate
+n_components: 128
 
-gpu: 0
+max_iter: 100
+
+tol: 1e-4
+
+reg_covar: 1e-6
+
+gpu: 2
 n_workers: 1
 
 sr: 16000
